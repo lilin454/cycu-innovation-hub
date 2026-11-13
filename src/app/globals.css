@@ -1,0 +1,476 @@
+@import "tailwindcss";
+
+/* ─────────────────────────────────────────────────────────────
+   創創社品牌色彩系統（取自社團 Logo：深藍底、燈泡黃、火箭橘、青綠）
+   ink    內文與線條        navy   品牌主色（Logo 底色）
+   sun    強調／免費標籤    flame  行動色／重點
+   teal   輔助色            paper  紙張底色（暖白）
+   ───────────────────────────────────────────────────────────── */
+@theme {
+  --color-ink: #0b2a4a;
+  --color-navy: #0e3a66;
+  --color-deep: #071e36;
+  --color-sun: #f9b934;
+  --color-sun-soft: #fde9b5;
+  --color-flame: #ee5e2a;
+  --color-flame-dark: #b93c0e;
+  --color-teal: #1fa7a8;
+  --color-teal-dark: #0f6f70;
+  --color-paper: #fbf7ee;
+  --color-paper-2: #f2ead8;
+  --color-muted: #55657a;
+  --color-line: #0b2a4a29;
+  --color-danger: #b42318;
+  --color-ok: #17794b;
+
+  --font-sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", "Heiti TC", system-ui, sans-serif;
+  --font-display: "Archivo", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --breakpoint-xs: 26rem;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 5.5rem;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: var(--color-sun);
+    color: var(--color-deep);
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-flame);
+    outline-offset: 2px;
+  }
+  h1,
+  h2,
+  h3 {
+    line-height: 1.25;
+    text-wrap: balance;
+  }
+  button,
+  [role="button"],
+  summary {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .wrap {
+    width: 100%;
+    max-width: 76rem;
+    margin-inline: auto;
+    padding-inline: 1.25rem;
+  }
+  @media (min-width: 48rem) {
+    .wrap {
+      padding-inline: 2.5rem;
+    }
+  }
+
+  /* 小標：等寬字、全大寫，用在區塊編號與欄位名稱 */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  /* 按鈕：直角、粗框，按下時位移 */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0.5rem 1.15rem;
+    border: 2px solid var(--color-ink);
+    font-weight: 700;
+    font-size: 0.95rem;
+    line-height: 1.2;
+    background: transparent;
+    color: var(--color-ink);
+    transition:
+      background-color 0.15s,
+      color 0.15s,
+      transform 0.1s,
+      box-shadow 0.15s;
+    white-space: nowrap;
+  }
+  .btn:hover:not(:disabled) {
+    background: var(--color-ink);
+    color: var(--color-paper);
+  }
+  .btn:active:not(:disabled) {
+    transform: translate(2px, 2px);
+  }
+  .btn:disabled {
+    opacity: 0.5;
+  }
+  .btn-ink {
+    background: var(--color-ink);
+    color: var(--color-paper);
+  }
+  .btn-ink:hover:not(:disabled) {
+    background: var(--color-flame-dark);
+    border-color: var(--color-flame-dark);
+    color: #fff;
+  }
+  .btn-sun {
+    background: var(--color-sun);
+    color: var(--color-deep);
+    box-shadow: 4px 4px 0 var(--color-ink);
+  }
+  .btn-sun:hover:not(:disabled) {
+    background: var(--color-sun);
+    color: var(--color-deep);
+    box-shadow: 2px 2px 0 var(--color-ink);
+    transform: translate(2px, 2px);
+  }
+  .btn-danger {
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: var(--color-danger);
+    color: #fff;
+  }
+  .btn-sm {
+    min-height: 2.1rem;
+    padding: 0.25rem 0.7rem;
+    font-size: 0.82rem;
+    border-width: 1.5px;
+  }
+
+  /* 三種分類用「形狀」區分，而不是靠一堆顏色：
+     來源＝實心深藍塊；類型＝細框；費用＝黃底或橘框 */
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.12rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.5;
+    white-space: nowrap;
+    border: 1.5px solid transparent;
+  }
+  .tag-source {
+    background: var(--color-ink);
+    color: var(--color-paper);
+    border-color: var(--color-ink);
+  }
+  .tag-type {
+    border-color: var(--color-ink);
+    color: var(--color-ink);
+    background: transparent;
+  }
+  .tag-custom {
+    color: var(--color-muted);
+    padding-inline: 0;
+    font-weight: 500;
+  }
+  .tag-free {
+    background: var(--color-sun);
+    color: var(--color-deep);
+    border-color: var(--color-sun);
+  }
+  .tag-paid {
+    border-color: var(--color-flame-dark);
+    color: var(--color-flame-dark);
+    background: #fff;
+  }
+  .tag-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    flex: none;
+  }
+
+  /* 篩選用的可點選標籤 */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 2.1rem;
+    padding: 0.2rem 0.75rem;
+    border: 1.5px solid var(--color-line);
+    font-size: 0.86rem;
+    font-weight: 500;
+    background: transparent;
+    transition:
+      border-color 0.15s,
+      background-color 0.15s;
+  }
+  .chip:hover {
+    border-color: var(--color-ink);
+  }
+  .chip[aria-pressed="true"],
+  .chip[aria-current="true"] {
+    background: var(--color-ink);
+    border-color: var(--color-ink);
+    color: var(--color-paper);
+    font-weight: 700;
+  }
+  .chip-count {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    opacity: 0.6;
+  }
+
+  /* 富文字內文（前台顯示與後台編輯器共用） */
+  .rich {
+    font-size: 1.04rem;
+    line-height: 1.95;
+    overflow-wrap: anywhere;
+    overflow-x: auto;
+  }
+  .rich > * + * {
+    margin-top: 1.1em;
+  }
+  .rich h2 {
+    font-size: 1.5rem;
+    font-weight: 900;
+    margin-top: 2.2em;
+    padding-top: 0.7em;
+    border-top: 2px solid var(--color-ink);
+  }
+  .rich h2:first-child {
+    margin-top: 0;
+  }
+  .rich h3 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-top: 1.8em;
+  }
+  .rich h4 {
+    font-weight: 700;
+    margin-top: 1.5em;
+  }
+  .rich a {
+    color: var(--color-flame-dark);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    font-weight: 500;
+  }
+  .rich ul {
+    list-style: square;
+    padding-left: 1.4em;
+  }
+  .rich ol {
+    list-style: decimal;
+    padding-left: 1.5em;
+  }
+  .rich li + li {
+    margin-top: 0.3em;
+  }
+  .rich li > p {
+    margin: 0;
+  }
+  .rich li::marker {
+    color: var(--color-flame);
+    font-weight: 700;
+  }
+  .rich blockquote {
+    border-left: 6px solid var(--color-sun);
+    background: var(--color-paper-2);
+    padding: 0.9em 1.2em;
+    font-weight: 500;
+  }
+  .rich hr {
+    border: 0;
+    border-top: 2px dashed var(--color-line);
+    margin-block: 2em;
+  }
+  .rich img {
+    max-width: 100%;
+    height: auto;
+    border: 1.5px solid var(--color-ink);
+  }
+  .rich .tableWrapper,
+  .rich .table-scroll {
+    overflow-x: auto;
+  }
+  .rich table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.95rem;
+  }
+  .rich th,
+  .rich td {
+    border: 1.5px solid var(--color-ink);
+    padding: 0.5em 0.8em;
+    vertical-align: top;
+    text-align: left;
+    min-width: 4em;
+    height: 2.6em;
+    position: relative;
+  }
+  .rich th {
+    background: var(--color-ink);
+    color: var(--color-paper);
+    font-weight: 700;
+  }
+  .rich th p,
+  .rich td p {
+    margin: 0;
+  }
+  .rich code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    background: var(--color-paper-2);
+    padding: 0.1em 0.35em;
+  }
+  .rich pre {
+    background: var(--color-deep);
+    color: var(--color-paper);
+    padding: 1em;
+    overflow-x: auto;
+    font-size: 0.9rem;
+  }
+  .rich pre code {
+    background: none;
+    padding: 0;
+  }
+
+  /* Tiptap 編輯器 */
+  .tiptap {
+    min-height: 22rem;
+    padding: 1.25rem;
+    outline: none;
+  }
+  .tiptap p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    color: #8a96a6;
+    float: left;
+    height: 0;
+    pointer-events: none;
+  }
+  .tiptap .selectedCell::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: #f9b93455;
+    pointer-events: none;
+  }
+  .tiptap .column-resize-handle {
+    position: absolute;
+    right: -2px;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--color-flame);
+    pointer-events: none;
+  }
+  .tiptap img.ProseMirror-selectednode {
+    outline: 3px solid var(--color-flame);
+  }
+
+  /* 後台表單 */
+  .field-label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-bottom: 0.3rem;
+  }
+  .field-hint {
+    font-size: 0.78rem;
+    color: var(--color-muted);
+    margin-top: 0.3rem;
+    line-height: 1.5;
+  }
+  .input {
+    display: block;
+    width: 100%;
+    min-height: 2.6rem;
+    padding: 0.45rem 0.7rem;
+    border: 1.5px solid #9aa7b6;
+    background: #fff;
+    color: var(--color-ink);
+    font-size: 0.95rem;
+    line-height: 1.5;
+    border-radius: 0;
+  }
+  .input:hover {
+    border-color: var(--color-ink);
+  }
+  .input:focus {
+    outline: 3px solid var(--color-sun);
+    outline-offset: 0;
+    border-color: var(--color-ink);
+  }
+  .input::placeholder {
+    color: #8a96a6;
+  }
+  textarea.input {
+    resize: vertical;
+    min-height: 5rem;
+  }
+  .panel {
+    background: #fff;
+    border: 1.5px solid var(--color-ink);
+  }
+
+  /* 列表中的活動日期方塊 */
+  .datebox {
+    font-family: var(--font-display);
+    font-feature-settings: "tnum";
+  }
+
+  .link-arrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 700;
+    border-bottom: 2px solid currentColor;
+    padding-bottom: 1px;
+    transition: gap 0.15s;
+  }
+  .link-arrow:hover {
+    gap: 0.7rem;
+  }
+
+  /* 封面沒有圖片時的品牌色塊（斜線紋理取自 Logo 的火箭軌跡） */
+  .cover-fallback {
+    background-image: repeating-linear-gradient(
+      -55deg,
+      transparent 0 22px,
+      rgb(255 255 255 / 0.07) 22px 24px
+    );
+  }
+}
+
+@keyframes toast-in {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

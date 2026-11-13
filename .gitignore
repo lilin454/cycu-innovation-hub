@@ -1,0 +1,13 @@
+node_modules/
+.next/
+out/
+.env
+.env.local
+.env.*.local
+/uploads/
+/.pgdata/
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+npm-debug.log*
+.claude/
