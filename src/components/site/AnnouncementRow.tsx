@@ -34,7 +34,7 @@ export function AnnouncementRow({ a }: { a: AnnouncementCard }) {
       <div className="min-w-0">
         <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
           {a.isPinned && <span className="tag bg-flame text-white">置頂</span>}
-          <TagList categories={a.categories} feeType={a.feeType} feeAmount={a.feeAmount} max={3} />
+          <TagList categories={a.categories} feeType={a.feeType} feeAmount={a.feeAmount} prize={a.prize} max={3} />
         </div>
         <h3 className="text-xl font-black leading-snug md:text-2xl">
           <Link href={`/a/${a.slug}`} className="after:absolute after:inset-0 group-hover:text-flame-dark">
@@ -77,7 +77,7 @@ export function AnnouncementMini({ a }: { a: AnnouncementCard }) {
   return (
     <article className="group relative flex flex-col" style={{ containerType: "inline-size" }}>
       <Cover src={a.coverImage} alt="" seed={a.slug} label={typeLabel(a)} ratio="16 / 10" />
-      <TagList categories={a.categories} feeType={a.feeType} feeAmount={a.feeAmount} max={2} className="mt-3" />
+      <TagList categories={a.categories} feeType={a.feeType} feeAmount={a.feeAmount} prize={a.prize} max={2} className="mt-3" />
       <h3 className="mt-2 text-lg font-black leading-snug">
         <Link href={`/a/${a.slug}`} className="after:absolute after:inset-0 group-hover:text-flame-dark">
           {a.title}

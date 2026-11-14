@@ -12,6 +12,7 @@ export function TagList({
   categories,
   feeType,
   feeAmount,
+  prize,
   showCustom = false,
   max,
   className = "",
@@ -19,6 +20,7 @@ export function TagList({
   categories: Cat[];
   feeType: FeeTypeKey;
   feeAmount?: number | null;
+  prize?: string | null;
   showCustom?: boolean;
   max?: number;
   className?: string;
@@ -31,6 +33,9 @@ export function TagList({
   const hidden = main.length - shown.length;
   return (
     <ul className={`flex flex-wrap items-center gap-1.5 ${className}`} aria-label="活動分類">
+      {prize?.trim() && (
+        <li><span className="tag tag-prize">獎金｜{prize.trim()}</span></li>
+      )}
       <li><FeeTag feeType={feeType} feeAmount={feeAmount} /></li>
       {shown.map((c) => (
         <li key={c.id}>

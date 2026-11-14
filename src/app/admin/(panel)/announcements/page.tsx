@@ -25,7 +25,7 @@ type SP = Record<string, string | string[] | undefined>;
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
 
 export default async function AdminAnnouncementsPage({ searchParams }: { searchParams: Promise<SP> }) {
-  await requireAdmin();
+  const me = await requireAdmin();
   await publishDue();
   const sp = await searchParams;
   const q = one(sp.q).trim().slice(0, 60);
@@ -170,7 +170,10 @@ export default async function AdminAnnouncementsPage({ searchParams }: { searchP
                     <br />
                     <span className="text-muted">{a.categories.filter((c) => c.kind === "EVENT_TYPE").map((c) => c.name).join("、") || "—"}</span>
                   </p>
-                  <p className="text-xs font-bold">{feeBadge(a.feeType, a.feeAmount)}</p>
+                  <p className="text-xs font-bold">
+                    {feeBadge(a.feeType, a.feeAmount)}
+                    {a.prize && <span className="block text-flame-dark">獎金｜{a.prize}</span>}
+                  </p>
                   <p className="text-xs leading-relaxed">
                     {a.status === "SCHEDULED" && a.scheduledAt ? (
                       <span className="font-bold text-teal-dark">預定 {formatDateTime(a.scheduledAt)} 發布</span>
@@ -189,6 +192,7 @@ export default async function AdminAnnouncementsPage({ searchParams }: { searchP
                     isFeatured={a.isFeatured}
                     url={url}
                     shareText={buildShareText(a, base)}
+                    canDelete={me.role === "OWNER"}
                   />
                 </li>
               );

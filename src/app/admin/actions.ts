@@ -18,15 +18,18 @@ import {
   firstZodError,
   SAVE_INTENTS,
   settingsSchema,
+  userCreateSchema,
   type SaveIntent,
 } from "@/lib/validation";
 
 type Fail = { ok: false; error: string };
 const fail = (error: string): Fail => ({ ok: false, error });
 
-async function guard(): Promise<Fail | null> {
+/** ownerOnly=true 時只有總管理員可以執行 */
+async function guard(ownerOnly = false): Promise<Fail | null> {
   try {
-    await assertAdmin();
+    const user = await assertAdmin();
+    if (ownerOnly && user.role !== "OWNER") return fail("這項操作只有總管理員可以執行。");
     return null;
   } catch {
     return fail("尚未登入或登入已過期，請重新登入。");
@@ -192,6 +195,8 @@ export async function saveAnnouncement(id: string | null, raw: unknown, intent: 
     contactOther: nullable(d.contactOther),
     invitationText: nullable(d.invitationText),
     customShareText: nullable(d.customShareText),
+    youtubeUrl: nullable(d.youtubeUrl),
+    prize: nullable(d.prize),
     isFeatured: d.isFeatured,
     isPinned: d.isPinned,
     status,
@@ -301,7 +306,7 @@ export async function toggleFlag(id: string, flag: "isPinned" | "isFeatured") {
 }
 
 export async function deleteAnnouncement(id: string) {
-  const denied = await guard();
+  const denied = await guard(true);
   if (denied) return denied;
   const a = await db.announcement.findUnique({ where: { id }, include: { attachments: true, images: true } });
   if (!a) return fail("找不到這則公告，可能已被刪除。");
@@ -315,7 +320,7 @@ export async function deleteAnnouncement(id: string) {
 // ───────────────────────── 分類 ─────────────────────────
 
 export async function createCategory(raw: unknown) {
-  const denied = await guard();
+  const denied = await guard(true);
   if (denied) return denied;
   const parsed = categorySchema.safeParse(raw);
   if (!parsed.success) return fail(firstZodError(parsed.error));
@@ -330,7 +335,7 @@ export async function createCategory(raw: unknown) {
 }
 
 export async function updateCategory(id: string, raw: unknown) {
-  const denied = await guard();
+  const denied = await guard(true);
   if (denied) return denied;
   const parsed = categorySchema.safeParse(raw);
   if (!parsed.success) return fail(firstZodError(parsed.error));
@@ -348,7 +353,7 @@ export async function updateCategory(id: string, raw: unknown) {
 
 /** 分類被公告使用時，先回傳使用數量讓管理者確認；確認後才真的刪除（公告本身不受影響） */
 export async function deleteCategory(id: string, confirmed: boolean) {
-  const denied = await guard();
+  const denied = await guard(true);
   if (denied) return denied;
   const cat = await db.category.findUnique({ where: { id }, include: { _count: { select: { announcements: true } } } });
   if (!cat) return fail("找不到這個分類。");
@@ -361,7 +366,7 @@ export async function deleteCategory(id: string, confirmed: boolean) {
 }
 
 export async function reorderCategories(ids: string[]) {
-  const denied = await guard();
+  const denied = await guard(true);
   if (denied) return denied;
   if (!Array.isArray(ids) || ids.length > 200 || ids.some((i) => typeof i !== "string")) return fail("資料格式不正確。");
   await db.$transaction(ids.map((cid, i) => db.category.updateMany({ where: { id: cid }, data: { sortOrder: i + 1 } })));
@@ -372,7 +377,7 @@ export async function reorderCategories(ids: string[]) {
 // ───────────────────────── 系統設定 ─────────────────────────
 
 export async function saveSettings(raw: unknown) {
-  const denied = await guard();
+  const denied = await guard(true);
   if (denied) return denied;
   const parsed = settingsSchema.safeParse(raw);
   if (!parsed.success) return fail(firstZodError(parsed.error));
@@ -386,5 +391,74 @@ export async function saveSettings(raw: unknown) {
   );
   if (old && old.value !== parsed.data.logoUrl) await cleanupFiles([old.value]);
   refreshPublic();
+  return { ok: true as const };
+}
+
+// ───────────────────────── 管理員帳號（僅總管理員） ─────────────────────────
+
+async function ownerOrFail() {
+  try {
+    const user = await assertAdmin();
+    if (user.role !== "OWNER") return { user: null, denied: fail("這項操作只有總管理員可以執行。") };
+    return { user, denied: null };
+  } catch {
+    return { user: null, denied: fail("尚未登入或登入已過期，請重新登入。") };
+  }
+}
+
+export async function createUser(raw: unknown) {
+  const { denied } = await ownerOrFail();
+  if (denied) return denied;
+  const parsed = userCreateSchema.safeParse(raw);
+  if (!parsed.success) return fail(firstZodError(parsed.error));
+  const { account, displayName, password, role } = parsed.data;
+  if (await db.user.findUnique({ where: { account } })) return fail("這個帳號已經存在。");
+  await db.user.create({ data: { account, displayName, role, passwordHash: await hashPassword(password) } });
+  revalidatePath("/admin/users");
+  return { ok: true as const };
+}
+
+export async function updateUser(id: string, raw: { displayName: string; role: "OWNER" | "EDITOR" }) {
+  const { user, denied } = await ownerOrFail();
+  if (denied) return denied;
+  const displayName = String(raw?.displayName ?? "").trim().slice(0, 40);
+  const role = raw?.role === "OWNER" ? "OWNER" : raw?.role === "EDITOR" ? "EDITOR" : null;
+  if (!displayName) return fail("請填寫顯示名稱。");
+  if (!role) return fail("權限設定不正確。");
+  const target = await db.user.findUnique({ where: { id } });
+  if (!target) return fail("找不到這個帳號。");
+  if (target.role === "OWNER" && role === "EDITOR") {
+    if (target.id === user.id) return fail("不能把自己降為一般管理員。");
+    if ((await db.user.count({ where: { role: "OWNER" } })) <= 1) return fail("至少要保留一位總管理員。");
+  }
+  await db.user.update({ where: { id }, data: { displayName, role } });
+  revalidatePath("/admin/users");
+  return { ok: true as const };
+}
+
+export async function resetUserPassword(id: string, password: string) {
+  const { denied } = await ownerOrFail();
+  if (denied) return denied;
+  if (typeof password !== "string" || password.length < 10) return fail("密碼至少需要 10 個字元。");
+  if (password.length > 200) return fail("密碼過長。");
+  const target = await db.user.findUnique({ where: { id } });
+  if (!target) return fail("找不到這個帳號。");
+  await db.user.update({ where: { id }, data: { passwordHash: await hashPassword(password) } });
+  // 重設密碼後，登出該帳號的所有裝置
+  await db.session.deleteMany({ where: { userId: id } });
+  return { ok: true as const };
+}
+
+export async function deleteUser(id: string) {
+  const { user, denied } = await ownerOrFail();
+  if (denied) return denied;
+  if (id === user.id) return fail("不能刪除自己正在使用的帳號。");
+  const target = await db.user.findUnique({ where: { id } });
+  if (!target) return fail("找不到這個帳號。");
+  if (target.role === "OWNER" && (await db.user.count({ where: { role: "OWNER" } })) <= 1) {
+    return fail("至少要保留一位總管理員。");
+  }
+  await db.user.delete({ where: { id } });
+  revalidatePath("/admin/users");
   return { ok: true as const };
 }

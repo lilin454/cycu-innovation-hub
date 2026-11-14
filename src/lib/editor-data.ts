@@ -19,7 +19,7 @@ export function emptyInitial(slug: string): EditorInitial {
     startAt: "", endAt: "", registrationDeadline: "", location: "", organizer: "", coOrganizer: "",
     targetAudience: "", registrationUrl: "", registrationMethod: "",
     contactName: "", contactEmail: "", contactPhone: "", contactLine: "", contactOther: "",
-    invitationText: "", customShareText: "", isFeatured: false, isPinned: false, scheduledAt: "",
+    invitationText: "", customShareText: "", youtubeUrl: "", prize: "", isFeatured: false, isPinned: false, scheduledAt: "",
     attachments: [], images: [],
     status: "DRAFT", publishedAt: null, updatedAt: null,
   };
@@ -54,6 +54,8 @@ export function toInitial(a: AnnouncementDetail): EditorInitial {
     contactOther: a.contactOther ?? "",
     invitationText: a.invitationText ?? "",
     customShareText: a.customShareText ?? "",
+    youtubeUrl: a.youtubeUrl ?? "",
+    prize: a.prize ?? "",
     isFeatured: a.isFeatured,
     isPinned: a.isPinned,
     scheduledAt: toInputValue(a.scheduledAt),

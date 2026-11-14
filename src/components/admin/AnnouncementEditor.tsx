@@ -269,6 +269,7 @@ export function AnnouncementEditor({
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => set(key, e.target.value as never),
   });
 
+  const isContest = categories.some((c) => c.kind === "EVENT_TYPE" && c.name.includes("競賽") && form.categoryIds.includes(c.id));
   const isPublished = status === "PUBLISHED";
   const isScheduled = status === "SCHEDULED";
   const saving = busy !== null;
@@ -420,6 +421,21 @@ export function AnnouncementEditor({
               </div>
             )}
 
+            <Field
+              label={isContest ? "獎金（競賽請務必填寫）" : "獎金（選填）"}
+              hint="例如：總獎金 NT$100,000、首獎 3 萬元。填寫後會以醒目標示出現在活動頁最上方、公告列表與轉傳文案的開頭。"
+            >
+              <input
+                className={`input max-w-md ${isContest && !form.prize.trim() ? "!border-flame-dark" : ""}`}
+                maxLength={60}
+                placeholder="總獎金 NT$100,000"
+                {...text("prize")}
+              />
+              {isContest && !form.prize.trim() && (
+                <span className="mt-1 block text-xs font-bold text-flame-dark">這則公告勾選了「競賽」，建議標註總獎金或獎金金額。</span>
+              )}
+            </Field>
+
             <div>
               <span className="field-label">自訂標籤</span>
               <div className="flex gap-2">
@@ -467,6 +483,9 @@ export function AnnouncementEditor({
             </div>
             <Field label="報名連結" hint="填寫後，前台會出現「前往報名」按鈕。">
               <input className="input" type="url" inputMode="url" maxLength={500} placeholder="https://" {...text("registrationUrl")} />
+            </Field>
+            <Field label="YouTube 影片連結（選填）" hint="貼上 YouTube 影片網址，影片會直接內嵌在活動頁面。不需要就留空。">
+              <input className="input" type="url" inputMode="url" maxLength={300} placeholder="https://www.youtube.com/watch?v=…" {...text("youtubeUrl")} />
             </Field>
             <Field label="報名方式">
               <textarea className="input" rows={2} maxLength={300} placeholder="例如：線上報名，額滿為止" {...text("registrationMethod")} />

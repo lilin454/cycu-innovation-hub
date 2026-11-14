@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { FEE_TYPES } from "./constants";
+import { youtubeId } from "./youtube";
 
 const text = (max: number) => z.string().trim().max(max, `不可超過 ${max} 字`);
 const optionalUrl = z
@@ -51,6 +52,12 @@ export const announcementSchema = z.object({
   contactOther: text(300),
   invitationText: text(1000),
   customShareText: text(2000),
+  prize: text(60),
+  youtubeUrl: z
+    .string()
+    .trim()
+    .max(300)
+    .refine((v) => v === "" || youtubeId(v) !== null, "請貼上有效的 YouTube 影片網址"),
   isFeatured: z.boolean(),
   isPinned: z.boolean(),
   scheduledAt: dateInput,
@@ -79,6 +86,8 @@ export const categorySchema = z.object({
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "顏色格式不正確"),
 });
 
+const flag = z.enum(["1", "0"]);
+
 export const settingsSchema = z.object({
   siteName: text(60).min(1, "請填寫網站名稱"),
   siteShortName: text(60),
@@ -99,6 +108,24 @@ export const settingsSchema = z.object({
   contactOther: text(200),
   cycuInfo: text(200),
   footerText: text(200),
+  presidentName: text(40),
+  showNextUp: flag,
+  showStats: flag,
+  showFeatured: flag,
+  showCategoryIndex: flag,
+  showSources: flag,
+  showAbout: flag,
+});
+
+export const userCreateSchema = z.object({
+  account: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z0-9._-]{3,64}$/, "帳號必須是 3–64 個字元的英文小寫、數字或 . _ -"),
+  displayName: text(40).min(1, "請填寫顯示名稱"),
+  password: z.string().min(10, "密碼至少需要 10 個字元").max(200, "密碼過長"),
+  role: z.enum(["OWNER", "EDITOR"]),
 });
 
 export function firstZodError(err: z.ZodError): string {

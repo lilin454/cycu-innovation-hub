@@ -16,6 +16,7 @@ export function RowActions({
   isFeatured,
   url,
   shareText,
+  canDelete,
 }: {
   id: string;
   title: string;
@@ -24,6 +25,7 @@ export function RowActions({
   isFeatured: boolean;
   url: string;
   shareText: string;
+  canDelete: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -127,7 +129,7 @@ export function RowActions({
           ) : (
             <button role="menuitem" type="button" className={item} onClick={() => run(() => setAnnouncementStatus(id, "DRAFT"), "已移回草稿")}>移回草稿</button>
           )}
-          <button role="menuitem" type="button" className={`${item} font-bold text-danger`} onClick={() => { setOpen(false); setConfirming(true); }}>刪除…</button>
+          {canDelete && <button role="menuitem" type="button" className={`${item} font-bold text-danger`} onClick={() => { setOpen(false); setConfirming(true); }}>刪除…</button>}
         </div>
       )}
 

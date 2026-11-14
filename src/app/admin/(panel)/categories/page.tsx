@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
-import { requireAdmin } from "@/lib/auth";
+import { requireOwner } from "@/lib/auth";
 import { CategoryManager, type ManagedCategory } from "@/components/admin/CategoryManager";
 
 export const metadata: Metadata = { title: "分類管理" };
 
 export default async function CategoriesAdminPage() {
-  await requireAdmin();
+  await requireOwner();
   const rows = await db.category.findMany({
     orderBy: [{ kind: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
     include: { _count: { select: { announcements: true } } },

@@ -19,6 +19,8 @@ const SOURCES: [string, string, string][] = [
   ["社團自辦活動", "club", NAVY],
   ["合作單位活動", "partner", TEAL],
   ["中原大學台北校友會活動", "alumni-taipei", SUN],
+  ["獎金獵人", "bhuntr", FLAME],
+  ["中原大學網站", "cycu-web", NAVY],
   ["其他", "other-source", SLATE],
 ];
 
@@ -89,6 +91,7 @@ async function seedDemo() {
       feeType: "DEPOSIT" as const,
       feeAmount: 1000,
       feeDescription: "全程參與後退還",
+      prize: "總獎金 NT$100,000（示範）",
       startAt: day(30, 9),
       endAt: day(31, 17),
       registrationDeadline: day(20, 23),

@@ -5,16 +5,27 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Logo } from "./Logo";
 
-const NAV = [
+const ALL_NAV = [
   { href: "/", label: "首頁" },
   { href: "/announcements", label: "最新公告" },
   { href: "/categories", label: "活動分類" },
   { href: "/about", label: "關於創創社" },
 ];
 
-export function SiteHeader({ siteName, siteNameEn, logoUrl }: { siteName: string; siteNameEn: string; logoUrl: string }) {
+export function SiteHeader({
+  siteName,
+  siteNameEn,
+  logoUrl,
+  showAbout,
+}: {
+  siteName: string;
+  siteNameEn: string;
+  logoUrl: string;
+  showAbout: boolean;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const NAV = showAbout ? ALL_NAV : ALL_NAV.filter((n) => n.href !== "/about");
 
   useEffect(() => setOpen(false), [pathname]);
   useEffect(() => {

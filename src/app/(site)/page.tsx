@@ -29,14 +29,15 @@ export default async function HomePage({ searchParams }: Props) {
     getPublicStats(),
   ]);
   const next = dateParts(nextUp?.startAt);
-  const [lead, ...restFeatured] = featured;
+  const on = (k: "showNextUp" | "showStats" | "showFeatured" | "showCategoryIndex") => s[k] !== "0";
+  const [lead, ...restFeatured] = on("showFeatured") ? featured : [];
 
   return (
     <>
       {/* ── Hero：左側標語、右側「下一場活動」──────────────── */}
       <section className="border-b-2 border-ink">
         <div className="wrap grid lg:grid-cols-12">
-          <div className="py-10 md:py-14 lg:col-span-7 lg:border-r-2 lg:border-ink lg:py-16 lg:pr-12">
+          <div className={on("showNextUp") ? "py-10 md:py-14 lg:col-span-7 lg:border-r-2 lg:border-ink lg:py-16 lg:pr-12" : "py-10 md:py-14 lg:col-span-12 lg:py-16"}>
             <p className="eyebrow flex items-center gap-3 text-[0.68rem] text-navy">
               <span className="inline-block h-2.5 w-2.5 bg-flame" aria-hidden />
               CYCU Innovation &amp; Entrepreneurship
@@ -55,6 +56,7 @@ export default async function HomePage({ searchParams }: Props) {
             </div>
           </div>
 
+          {on("showNextUp") && (
           <div className="-mx-5 bg-navy text-paper md:-mx-10 lg:col-span-5 lg:mx-0 lg:-mr-10">
             {nextUp && next ? (
               <Link href={`/a/${nextUp.slug}`} className="group flex h-full flex-col justify-between gap-8 p-6 md:p-10">
@@ -85,10 +87,12 @@ export default async function HomePage({ searchParams }: Props) {
               </div>
             )}
           </div>
+          )}
         </div>
       </section>
 
       {/* ── 數字條 ─────────────────────────────────────── */}
+      {on("showStats") && (
       <section aria-label="公告統計" className="border-b-2 border-ink bg-sun text-deep">
         <dl className="wrap grid grid-cols-3 divide-x-2 divide-ink">
           {[
@@ -103,6 +107,7 @@ export default async function HomePage({ searchParams }: Props) {
           ))}
         </dl>
       </section>
+      )}
 
       {/* ── 精選活動 ───────────────────────────────────── */}
       {lead && (
@@ -112,7 +117,7 @@ export default async function HomePage({ searchParams }: Props) {
             <article className={`group relative ${restFeatured.length ? "lg:col-span-8" : "grid gap-6 md:grid-cols-2 md:items-center"}`}>
               <Cover src={lead.coverImage} alt="" seed={lead.slug} label={typeLabel(lead)} ratio={restFeatured.length ? "16 / 9" : "4 / 3"} priority />
               <div className={restFeatured.length ? "mt-5" : ""}>
-                <TagList categories={lead.categories} feeType={lead.feeType} feeAmount={lead.feeAmount} max={3} />
+                <TagList categories={lead.categories} feeType={lead.feeType} feeAmount={lead.feeAmount} prize={lead.prize} max={3} />
                 <h3 className="mt-3 text-2xl font-black leading-tight md:text-4xl">
                   <Link href={`/a/${lead.slug}`} className="after:absolute after:inset-0 group-hover:text-flame-dark">{lead.title}</Link>
                 </h3>
@@ -129,7 +134,7 @@ export default async function HomePage({ searchParams }: Props) {
                 {restFeatured.map((a, i) => (
                   <article key={a.id} className="group relative flex-1 py-6">
                     <p className="font-display text-5xl font-black leading-none text-sun [-webkit-text-stroke:1.5px_var(--color-ink)]">0{i + 2}</p>
-                    <TagList categories={a.categories} feeType={a.feeType} feeAmount={a.feeAmount} max={2} className="mt-4" />
+                    <TagList categories={a.categories} feeType={a.feeType} feeAmount={a.feeAmount} prize={a.prize} max={2} className="mt-4" />
                     <h3 className="mt-2 text-xl font-black leading-snug">
                       <Link href={`/a/${a.slug}`} className="after:absolute after:inset-0 group-hover:text-flame-dark">{a.title}</Link>
                     </h3>
@@ -163,7 +168,7 @@ export default async function HomePage({ searchParams }: Props) {
       </section>
 
       {/* ── 活動分類入口 ───────────────────────────────── */}
-      {!filtering && <CategoryIndex categories={categories} no={lead ? "03" : "02"} />}
+      {!filtering && on("showCategoryIndex") && <CategoryIndex categories={categories} no={lead ? "03" : "02"} />}
     </>
   );
 }

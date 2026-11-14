@@ -21,6 +21,14 @@ export const SETTING_DEFAULTS = {
   contactOther: "",
   cycuInfo: "中原大學｜320 桃園市中壢區中北路 200 號",
   footerText: "創意不該只留在腦中。來現場，和我們一起把它做出來。",
+  presidentName: "林立",
+  // 板塊顯示開關："1" 顯示、"0" 隱藏
+  showNextUp: "1",
+  showStats: "1",
+  showFeatured: "1",
+  showCategoryIndex: "1",
+  showSources: "1",
+  showAbout: "1",
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;

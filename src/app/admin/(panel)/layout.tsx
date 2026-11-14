@@ -33,11 +33,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <span className="eyebrow text-[0.55rem] text-paper/50">Admin</span>
           </span>
         </Link>
-        <AdminNav orientation="vertical" />
+        <AdminNav orientation="vertical" isOwner={user.role === "OWNER"} />
         <div className="mt-auto space-y-3 border-t border-paper/15 p-4">
           <a href="/" target="_blank" rel="noopener noreferrer" className="block text-sm font-bold hover:text-sun">查看前台 ↗</a>
           <div className="flex items-center justify-between gap-2">
-            <p className="min-w-0 truncate text-xs text-paper/70" title={user.account}>{user.displayName}</p>
+            <p className="min-w-0 truncate text-xs text-paper/70" title={user.account}>
+              {user.displayName}
+              <span className="block text-[0.65rem] text-sun">{user.role === "OWNER" ? "總管理員" : "一般管理員"}</span>
+            </p>
             {logout}
           </div>
         </div>
@@ -50,7 +53,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <Logo src={s.logoUrl} size={30} />
             後台
           </Link>
-          <AdminNav orientation="horizontal" />
+          <AdminNav orientation="horizontal" isOwner={user.role === "OWNER"} />
           {logout}
         </div>
       </header>

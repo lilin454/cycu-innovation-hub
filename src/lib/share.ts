@@ -20,6 +20,7 @@ export type ShareSource = {
   registrationUrl?: string | null;
   invitationText?: string | null;
   customShareText?: string | null;
+  prize?: string | null;
 };
 
 export const SHARE_VARIABLES = [
@@ -28,6 +29,7 @@ export const SHARE_VARIABLES = [
   ["{活動時間}", "活動時間"],
   ["{活動地點}", "活動地點"],
   ["{費用}", "費用"],
+  ["{獎金}", "獎金"],
   ["{活動對象}", "活動對象"],
   ["{報名截止}", "報名截止時間"],
   ["{報名連結}", "報名連結"],
@@ -53,6 +55,7 @@ export function buildAutoShareText(a: ShareSource, baseUrl: string): string {
   if (intro) lines.push("", intro);
 
   const info: string[] = [];
+  if (a.prize?.trim()) info.push(`活動獎金｜${a.prize.trim()}`);
   const time = formatRange(a.startAt, a.endAt);
   if (time) info.push(`活動時間｜${time}`);
   if (a.location?.trim()) info.push(`活動地點｜${a.location.trim()}`);
@@ -76,6 +79,7 @@ export function buildShareText(a: ShareSource, baseUrl: string): string {
     "{活動時間}": formatRange(a.startAt, a.endAt),
     "{活動地點}": a.location ?? "",
     "{費用}": formatFee(a.feeType, a.feeAmount, a.feeDescription),
+    "{獎金}": a.prize ?? "",
     "{活動對象}": a.targetAudience ?? "",
     "{報名截止}": formatDateTime(a.registrationDeadline),
     "{報名連結}": a.registrationUrl ?? "",

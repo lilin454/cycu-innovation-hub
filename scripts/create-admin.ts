@@ -11,6 +11,9 @@ async function main() {
   const account = (process.env.ADMIN_ACCOUNT ?? "").trim().toLowerCase();
   const password = process.env.ADMIN_PASSWORD ?? "";
   const displayName = (process.env.ADMIN_DISPLAY_NAME ?? "").trim() || "創創社管理員";
+  // ADMIN_ROLE=OWNER 總管理員；EDITOR 一般管理員。未設定時：第一個帳號為總管理員，其餘為一般管理員
+  const roleEnv = (process.env.ADMIN_ROLE ?? "").trim().toUpperCase();
+  const forcedRole = roleEnv === "OWNER" || roleEnv === "EDITOR" ? roleEnv : null;
 
   if (!/^[a-z0-9._-]{3,64}$/.test(account)) {
     throw new Error("ADMIN_ACCOUNT 必須是 3–64 個字元的英文小寫、數字或 . _ -");
@@ -22,12 +25,12 @@ async function main() {
   const passwordHash = await bcrypt.hash(password, 12);
   const existing = await db.user.findUnique({ where: { account } });
   if (existing) {
-    await db.user.update({ where: { account }, data: { passwordHash, displayName } });
+    await db.user.update({ where: { account }, data: { passwordHash, displayName, ...(forcedRole ? { role: forcedRole } : {}) } });
     await db.session.deleteMany({ where: { userId: existing.id } });
     console.log(`已重設管理員「${account}」的密碼，並登出該帳號的所有裝置。`);
   } else {
     const isFirst = (await db.user.count()) === 0;
-    await db.user.create({ data: { account, passwordHash, displayName, role: isFirst ? "OWNER" : "EDITOR" } });
+    await db.user.create({ data: { account, passwordHash, displayName, role: forcedRole ?? (isFirst ? "OWNER" : "EDITOR") } });
     console.log(`已建立管理員「${account}」。請至 /admin/login 登入。`);
   }
   console.log("提醒：建立完成後，可以把 .env 中的 ADMIN_PASSWORD 清空。");

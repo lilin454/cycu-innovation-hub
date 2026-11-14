@@ -94,6 +94,8 @@ model Announcement {
   contactOther         String?
   invitationText       String?
   customShareText      String?
+  youtubeUrl           String?
+  prize                String?
   status               AnnouncementStatus @default(DRAFT)
   isFeatured           Boolean            @default(false)
   isPinned             Boolean            @default(false)

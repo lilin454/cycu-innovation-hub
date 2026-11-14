@@ -21,13 +21,11 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
   );
 }
 
-export function SettingsForm({ initial, account }: { initial: Values; account: string }) {
+export function SettingsForm({ initial }: { initial: Values }) {
   const router = useRouter();
   const [v, setV] = useState<Values>(initial);
   const [pending, start] = useTransition();
   const [uploading, setUploading] = useState(false);
-  const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
-  const [pwPending, startPw] = useTransition();
 
   const bind = (key: string) => ({
     value: v[key] ?? "",
@@ -66,26 +64,20 @@ export function SettingsForm({ initial, account }: { initial: Values; account: s
     }
   };
 
-  const submitPw = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (pw.next !== pw.confirm) {
-      toast("兩次輸入的新密碼不一致。", "error");
-      return;
-    }
-    startPw(async () => {
-      try {
-        const res = await changePassword(pw.current, pw.next);
-        if (!res.ok) {
-          toast(res.error, "error");
-          return;
-        }
-        toast("密碼已更新");
-        setPw({ current: "", next: "", confirm: "" });
-      } catch {
-        toast("網路連線錯誤，請稍後再試。", "error");
-      }
-    });
-  };
+  const toggle = (key: string, label: string, hint: string) => (
+    <label key={key} className="flex cursor-pointer items-start gap-3 border-2 border-line bg-white p-3 has-[:checked]:border-ink has-[:checked]:bg-sun-soft">
+      <input
+        type="checkbox"
+        className="mt-1 h-5 w-5 accent-[#0b2a4a]"
+        checked={v[key] !== "0"}
+        onChange={(e) => setV((prev) => ({ ...prev, [key]: e.target.checked ? "1" : "0" }))}
+      />
+      <span>
+        <span className="block font-bold">{label}</span>
+        <span className="text-xs text-muted">{hint}</span>
+      </span>
+    </label>
+  );
 
   return (
     <>
@@ -122,9 +114,27 @@ export function SettingsForm({ initial, account }: { initial: Values; account: s
               <input className="input" maxLength={60} required {...bind("heroTagline")} />
             </Row>
             <Row label="首頁簡介"><textarea className="input" rows={3} maxLength={300} {...bind("heroIntro")} /></Row>
+            <Row label="社長" hint="顯示在「關於創創社」頁面，留空則不顯示。">
+              <input className="input max-w-xs" maxLength={40} {...bind("presidentName")} />
+            </Row>
             <Row label="社團簡介（關於頁）" hint="可以分段，每一行會成為一個段落。">
               <textarea className="input" rows={6} maxLength={2000} {...bind("aboutText")} />
             </Row>
+          </div>
+        </section>
+
+        <section className="panel">
+          <h2 className="border-b-2 border-ink bg-paper-2 px-4 py-2.5 font-black">板塊顯示</h2>
+          <div className="p-4 md:p-6">
+            <p className="field-hint !mt-0 mb-3">取消勾選就會從前台隱藏，資料不會被刪除，隨時可以再打開。</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {toggle("showNextUp", "首頁｜下一場活動", "首頁最上方右側的深藍色區塊。")}
+              {toggle("showStats", "首頁｜數字統計條", "公開公告、即將舉辦、免費活動的數量。")}
+              {toggle("showFeatured", "首頁｜精選活動", "被設為精選的公告。")}
+              {toggle("showCategoryIndex", "首頁｜依分類找活動", "首頁下方的分類入口。")}
+              {toggle("showAbout", "「關於創創社」頁面", "隱藏後導覽列與頁尾的連結也會一併移除。")}
+              {toggle("showSources", "關於頁｜活動資訊來源", "合作單位與資訊來源的標誌。")}
+            </div>
           </div>
         </section>
 
@@ -153,23 +163,52 @@ export function SettingsForm({ initial, account }: { initial: Values; account: s
         </div>
       </form>
 
-      <form onSubmit={submitPw} className="panel mt-10">
-        <h2 className="border-b-2 border-ink bg-paper-2 px-4 py-2.5 font-black">變更密碼（帳號：{account}）</h2>
-        <div className="grid gap-5 p-4 sm:grid-cols-3 md:p-6">
-          <Row label="目前的密碼">
-            <input className="input" type="password" autoComplete="current-password" required value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} />
-          </Row>
-          <Row label="新密碼" hint="至少 10 個字元">
-            <input className="input" type="password" autoComplete="new-password" required minLength={10} value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} />
-          </Row>
-          <Row label="再次輸入新密碼">
-            <input className="input" type="password" autoComplete="new-password" required minLength={10} value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} />
-          </Row>
-          <div className="sm:col-span-3">
-            <button type="submit" className="btn" disabled={pwPending}>{pwPending ? "更新中…" : "更新密碼"}</button>
-          </div>
-        </div>
-      </form>
     </>
+  );
+}
+
+export function PasswordForm({ account }: { account: string }) {
+  const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
+  const [pwPending, startPw] = useTransition();
+
+  const submitPw = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pw.next !== pw.confirm) {
+      toast("兩次輸入的新密碼不一致。", "error");
+      return;
+    }
+    startPw(async () => {
+      try {
+        const res = await changePassword(pw.current, pw.next);
+        if (!res.ok) {
+          toast(res.error, "error");
+          return;
+        }
+        toast("密碼已更新");
+        setPw({ current: "", next: "", confirm: "" });
+      } catch {
+        toast("網路連線錯誤，請稍後再試。", "error");
+      }
+    });
+  };
+
+  return (
+    <form onSubmit={submitPw} className="panel mt-10">
+      <h2 className="border-b-2 border-ink bg-paper-2 px-4 py-2.5 font-black">變更密碼（帳號：{account}）</h2>
+      <div className="grid gap-5 p-4 sm:grid-cols-3 md:p-6">
+        <Row label="目前的密碼">
+          <input className="input" type="password" autoComplete="current-password" required value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} />
+        </Row>
+        <Row label="新密碼" hint="至少 10 個字元">
+          <input className="input" type="password" autoComplete="new-password" required minLength={10} value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} />
+        </Row>
+        <Row label="再次輸入新密碼">
+          <input className="input" type="password" autoComplete="new-password" required minLength={10} value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} />
+        </Row>
+        <div className="sm:col-span-3">
+          <button type="submit" className="btn" disabled={pwPending}>{pwPending ? "更新中…" : "更新密碼"}</button>
+        </div>
+      </div>
+    </form>
   );
 }

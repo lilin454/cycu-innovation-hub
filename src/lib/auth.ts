@@ -115,6 +115,13 @@ export async function requireAdmin(): Promise<CurrentUser> {
   return user;
 }
 
+/** 頁面用：只有總管理員可以進入，其他管理員導回總覽 */
+export async function requireOwner(): Promise<CurrentUser> {
+  const user = await requireAdmin();
+  if (user.role !== "OWNER") redirect("/admin");
+  return user;
+}
+
 export class UnauthorizedError extends Error {
   constructor() {
     super("尚未登入或登入已過期，請重新登入。");

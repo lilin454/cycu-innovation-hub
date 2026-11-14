@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { AnnouncementDetail } from "@/lib/announcements";
 import { formatBytes, formatDate, formatDateTime, formatFee, formatRange } from "@/lib/format";
 import { sanitizeContent } from "@/lib/sanitize";
+import { youtubeEmbedUrl, youtubeId } from "@/lib/youtube";
 import { Cover } from "./Cover";
 import { ShareBar } from "./ShareBar";
 import { TagList } from "./Tags";
@@ -34,6 +35,7 @@ export function AnnouncementView({
   const typeName = a.categories.find((c) => c.kind === "EVENT_TYPE")?.name ?? "活動";
   const hasContact = a.contactName || a.contactEmail || a.contactPhone || a.contactLine || a.contactOther;
   const html = sanitizeContent(a.content);
+  const videoId = youtubeId(a.youtubeUrl);
 
   return (
     <article className="pb-28 lg:pb-0">
@@ -47,6 +49,12 @@ export function AnnouncementView({
             <span aria-hidden>/</span>
             <span className="text-ink">{a.slug}</span>
           </nav>
+          {a.prize?.trim() && (
+            <p className="mb-4 inline-flex items-stretch border-2 border-ink text-base font-black leading-none md:text-lg">
+              <span className="flex items-center bg-ink px-3 py-2.5 text-sun">獎金</span>
+              <span className="flex items-center bg-sun px-4 py-2.5 text-deep">{a.prize.trim()}</span>
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             {ended && <span className="tag bg-muted text-white">活動已結束</span>}
             <TagList categories={a.categories} feeType={a.feeType} feeAmount={a.feeAmount} showCustom />
@@ -74,6 +82,23 @@ export function AnnouncementView({
           {html.trim() && (
             <section aria-label="活動內容" className={a.coverImage ? "mt-10" : "mt-10 lg:mt-0"}>
               <div className="rich" dangerouslySetInnerHTML={{ __html: html }} />
+            </section>
+          )}
+
+          {videoId && (
+            <section aria-labelledby="video-title" className="mt-14">
+              <h2 id="video-title" className="border-t-2 border-ink pt-4 text-2xl font-black">活動影片</h2>
+              <div className="mt-5 aspect-video border-2 border-ink bg-deep">
+                <iframe
+                  src={youtubeEmbedUrl(videoId)}
+                  title={`${a.title} 活動影片`}
+                  loading="lazy"
+                  className="h-full w-full"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
+              </div>
             </section>
           )}
 
@@ -176,6 +201,11 @@ export function AnnouncementView({
           <span className="eyebrow text-[0.6rem] text-sun">Info</span>
         </div>
         <dl className="px-4">
+          {a.prize?.trim() && (
+            <Info label="活動獎金">
+              <span className="font-black text-flame-dark">{a.prize.trim()}</span>
+            </Info>
+          )}
           {when && <Info label="活動時間">{when}</Info>}
           {deadline && (
             <Info label="報名截止">

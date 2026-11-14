@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { copyWithToast, toast } from "@/components/Toaster";
+import { copyText, copyWithToast, toast } from "@/components/Toaster";
 
-/** 活動分享：複製網址、複製轉傳文案、LINE、Facebook、系統原生分享 */
+/** 活動分享：複製網址、複製轉傳文案、LINE、Instagram 私訊、系統原生分享 */
 export function ShareBar({
   url,
   title,
@@ -20,7 +20,14 @@ export function ShareBar({
   useEffect(() => setCanNative(typeof navigator !== "undefined" && typeof navigator.share === "function"), []);
 
   const line = `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(url)}`;
-  const fb = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+  // Instagram 沒有可帶入內容的私訊分享網址：先把文案複製好，再開啟私訊頁讓使用者貼上
+  const shareToInstagram = async () => {
+    // 複製與開新分頁都要在同一次點擊中發起，才不會被瀏覽器的彈出視窗封鎖擋下
+    const copying = copyText(shareText);
+    window.open("https://www.instagram.com/direct/inbox/", "_blank", "noopener,noreferrer");
+    const ok = await copying;
+    toast(ok ? "已複製文案，請在 Instagram 私訊中貼上傳送" : "複製失敗，請先手動複製文案再到 Instagram 貼上。", ok ? "success" : "error");
+  };
 
   const nativeShare = async () => {
     try {
@@ -71,7 +78,7 @@ export function ShareBar({
         </button>
         <div className={`grid gap-2 ${canNative ? "grid-cols-3" : "grid-cols-2"}`}>
           <a className="btn btn-sm bg-white" href={line} target="_blank" rel="noopener noreferrer">LINE</a>
-          <a className="btn btn-sm bg-white" href={fb} target="_blank" rel="noopener noreferrer">Facebook</a>
+          <button type="button" className="btn btn-sm bg-white !px-1.5" onClick={shareToInstagram}>IG 私訊</button>
           {canNative && (
             <button type="button" className="btn btn-sm bg-white" onClick={nativeShare}>更多…</button>
           )}

@@ -205,6 +205,12 @@
     color: var(--color-flame-dark);
     background: #fff;
   }
+  /* 獎金：橘底白字，在所有標籤中最醒目 */
+  .tag-prize {
+    background: var(--color-flame-dark);
+    color: #fff;
+    border-color: var(--color-flame-dark);
+  }
   .tag-dot {
     width: 0.5rem;
     height: 0.5rem;
