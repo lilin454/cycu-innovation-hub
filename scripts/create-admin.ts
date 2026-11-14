@@ -15,6 +15,13 @@ async function main() {
   const roleEnv = (process.env.ADMIN_ROLE ?? "").trim().toUpperCase();
   const forcedRole = roleEnv === "OWNER" || roleEnv === "EDITOR" ? roleEnv : null;
 
+  // --if-missing：給正式環境啟動時使用。沒設定帳號密碼就略過；帳號已存在就不動它（不會重設密碼）
+  const ifMissing = process.argv.includes("--if-missing");
+  if (ifMissing && (!account || !password)) {
+    console.log("[admin] 未設定 ADMIN_ACCOUNT / ADMIN_PASSWORD，略過建立管理員。");
+    return;
+  }
+
   if (!/^[a-z0-9._-]{3,64}$/.test(account)) {
     throw new Error("ADMIN_ACCOUNT 必須是 3–64 個字元的英文小寫、數字或 . _ -");
   }
@@ -22,8 +29,12 @@ async function main() {
     throw new Error("ADMIN_PASSWORD 至少需要 10 個字元，且不可使用範例文字。請先修改 .env。");
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
   const existing = await db.user.findUnique({ where: { account } });
+  if (existing && ifMissing) {
+    console.log(`[admin] 管理員「${account}」已存在，不做變更。`);
+    return;
+  }
+  const passwordHash = await bcrypt.hash(password, 12);
   if (existing) {
     await db.user.update({ where: { account }, data: { passwordHash, displayName, ...(forcedRole ? { role: forcedRole } : {}) } });
     await db.session.deleteMany({ where: { userId: existing.id } });

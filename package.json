@@ -14,7 +14,8 @@
     "db:studio": "prisma studio",
     "admin:create": "tsx scripts/create-admin.ts",
     "setup": "prisma migrate deploy && tsx prisma/seed.ts && tsx scripts/create-admin.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "start:prod": "prisma migrate deploy && tsx prisma/seed.ts && tsx scripts/create-admin.ts --if-missing && next start"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1168.0",

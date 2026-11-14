@@ -211,21 +211,18 @@ npm run dev
 
 1. 建立一個 PostgreSQL 資料庫，取得連線字串。
 2. 設定環境變數：`DATABASE_URL`、`SITE_URL=https://你的網域`、`STORAGE_DRIVER=local`、`UPLOAD_DIR=/data/uploads`（指向掛載的持久磁碟）。
-3. 建置與啟動指令：
+3. 另外設定 `ADMIN_ACCOUNT`、`ADMIN_PASSWORD`、`ADMIN_ROLE=OWNER`（第一次啟動時會自動建立這位總管理員；帳號已存在就不會再變更，之後可以把 `ADMIN_PASSWORD` 從平台上移除）。
+4. 建置與啟動指令：
 
 ```bash
 npm ci && npm run build
 ```
 
 ```bash
-npm run db:migrate && npm run db:seed && npm start
+npm run start:prod
 ```
 
-4. 第一次部署後，在主機上（或用平台的一次性指令）設定 `ADMIN_ACCOUNT`、`ADMIN_PASSWORD` 後執行：
-
-```bash
-npm run admin:create
-```
+`start:prod` 會依序：套用資料庫遷移 → 補齊預設分類 → 第一次啟動時建立管理員 → 啟動網站。
 
 > 注意：如果平台的磁碟不是持久的（每次部署都會清空），上傳的圖片與附件會消失，請改用方案 B 的 S3 儲存。
 
