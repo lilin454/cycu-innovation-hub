@@ -1,5 +1,5 @@
 // Cloudflare Workers 設定（免費方案即可）
-// 部署前請把 database_id 與 kv id 換成你帳號中實際建立的資源 ID（見 README）
+// database_id 與 kv id 是這個帳號中實際建立的資源 ID（只是識別碼，不是密鑰）；換帳號部署時請重新建立並替換（見 README）
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "cycu-innovation-board",
@@ -15,7 +15,7 @@
     {
       "binding": "DB",
       "database_name": "cycu-board",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "cb5b894e-f105-4f3b-b05c-d54145d88809",
       "migrations_dir": "migrations"
     }
   ],
@@ -23,7 +23,7 @@
   "kv_namespaces": [
     {
       "binding": "FILES",
-      "id": "00000000000000000000000000000000"
+      "id": "a6cec61ed3df49f8b6f6ea97cc2fc122"
     }
   ],
   // 排程發布：每 5 分鐘檢查一次到期的「已排程」公告
