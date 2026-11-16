@@ -16,7 +16,6 @@ import { formatBytes, formatDateTime, fromInputValue } from "@/lib/format";
 import { buildShareText, SHARE_VARIABLES, shareUrl } from "@/lib/share";
 import type { AnnouncementInput, SaveIntent } from "@/lib/validation";
 import { copyWithToast, toast } from "@/components/Toaster";
-import { RichText } from "./RichText";
 import { StatusBadge } from "./StatusBadge";
 import { uploadFile } from "./upload";
 
@@ -493,8 +492,29 @@ export function AnnouncementEditor({
           </Section>
 
           {/* D 內文 */}
-          <Section id="content" code="D" title="完整公告內文" hint="支援標題、清單、表格、圖片、連結">
-            <RichText value={initial.content} onChange={(html) => set("content", html)} />
+          <Section id="content" code="D" title="完整公告內文" hint="純文字加上簡易標記">
+            <textarea
+              className="input min-h-[22rem] font-sans leading-relaxed"
+              rows={16}
+              maxLength={50000}
+              aria-label="公告內文"
+              placeholder={"在這裡撰寫活動介紹、報名辦法、活動流程、注意事項…\n\n# 活動流程\n- 13:30 報到\n- 14:00 開場\n\n報名網址會自動變成連結：https://example.com"}
+              {...text("content")}
+            />
+            <div className="border-2 border-line bg-paper-2 p-3 text-xs leading-relaxed">
+              <p className="font-black">排版小技巧（直接打在文字裡即可）</p>
+              <ul className="mt-1 grid gap-x-6 gap-y-0.5 sm:grid-cols-2">
+                <li><code className="font-mono font-bold"># 文字</code>　大標題</li>
+                <li><code className="font-mono font-bold">## 文字</code>　小標題</li>
+                <li><code className="font-mono font-bold">- 文字</code>　條列清單</li>
+                <li><code className="font-mono font-bold">1. 文字</code>　編號清單</li>
+                <li><code className="font-mono font-bold">&gt; 文字</code>　引言區塊</li>
+                <li><code className="font-mono font-bold">---</code>　分隔線</li>
+                <li><code className="font-mono font-bold">**文字**</code>　粗體</li>
+                <li>空一行＝換段；網址會自動變成連結</li>
+              </ul>
+              <p className="mt-1 text-muted">圖片請放在下方「活動圖片」，表格類資料建議上傳成附件。按「儲存並預覽」可以看實際效果。</p>
+            </div>
           </Section>
 
           {/* E 圖片與附件 */}

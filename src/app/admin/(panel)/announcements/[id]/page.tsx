@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
-import { detailInclude } from "@/lib/announcements";
+import { getAnnouncementById } from "@/lib/announcements";
 import { getEditorCategories, toInitial } from "@/lib/editor-data";
 import { getBaseUrl } from "@/lib/settings";
 import { AnnouncementEditor } from "@/components/admin/AnnouncementEditor";
@@ -13,7 +12,7 @@ export default async function EditAnnouncementPage({ params }: { params: Promise
   await requireAdmin();
   const { id } = await params;
   const [a, categories, baseUrl] = await Promise.all([
-    db.announcement.findUnique({ where: { id }, include: detailInclude }),
+    getAnnouncementById(id),
     getEditorCategories(),
     getBaseUrl(),
   ]);

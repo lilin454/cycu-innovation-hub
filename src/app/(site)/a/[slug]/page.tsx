@@ -16,7 +16,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const [base, s] = await Promise.all([getBaseUrl(), getSettings()]);
   const url = shareUrl(base, a.slug);
   const when = formatRange(a.startAt, a.endAt);
-  const description = (a.summary || a.contentText || s.heroIntro).slice(0, 150) + (when ? `｜${when}` : "");
+  const description = (a.summary || a.content.replace(/[#>*-]/g, " ").replace(/\s+/g, " ").trim() || s.heroIntro).slice(0, 150) + (when ? `｜${when}` : "");
   const image = a.coverImage || s.logoUrl || "/brand/logo.jpg";
   return {
     title: a.title,

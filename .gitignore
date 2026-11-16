@@ -1,11 +1,12 @@
 node_modules/
 .next/
+.open-next/
+.wrangler/
 out/
 .env
 .env.local
 .env.*.local
-/uploads/
-/.pgdata/
+.dev.vars
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store

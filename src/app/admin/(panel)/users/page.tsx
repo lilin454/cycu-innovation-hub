@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { db } from "@/lib/db";
+import { all } from "@/lib/db";
+import type { Role } from "@/lib/types";
 import { requireOwner } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import { UserManager, type ManagedUser } from "@/components/admin/UserManager";
@@ -8,7 +9,9 @@ export const metadata: Metadata = { title: "管理員帳號" };
 
 export default async function UsersPage() {
   const me = await requireOwner();
-  const rows = await db.user.findMany({ orderBy: [{ role: "asc" }, { createdAt: "asc" }] });
+  const rows = await all<{ id: string; account: string; displayName: string; role: Role; createdAt: string }>(
+    `SELECT "id", "account", "displayName", "role", "createdAt" FROM "User" ORDER BY "role" DESC, "createdAt" ASC`,
+  );
   const users: ManagedUser[] = rows.map((u) => ({
     id: u.id,
     account: u.account,

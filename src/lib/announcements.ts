@@ -1,45 +1,65 @@
 import "server-only";
-import type { Prisma } from "@prisma/client";
-import { db } from "./db";
-import { FEE_SLUG, FEE_TYPES, SORTS, type FeeTypeKey, type SortKey } from "./constants";
+import { all, first, likePattern, nowIso, placeholders, run } from "./db";
+import { FEE_SLUG, FEE_TYPES, SORTS, STATUSES, type FeeTypeKey, type SortKey, type StatusKey } from "./constants";
+import {
+  mapAnnouncement,
+  type Announcement,
+  type AnnouncementCard,
+  type AnnouncementDetail,
+  type AnnouncementImage,
+  type AnnouncementRow,
+  type Attachment,
+  type Category,
+} from "./types";
+
+export type { AnnouncementCard, AnnouncementDetail } from "./types";
 
 export const PAGE_SIZE = 8;
 
 /**
- * 排程發布：把到期的「已排程」公告改為「已發布」。
- * 由三個地方觸發，確保任何部署方式都會真的執行：
- * 1. 伺服器啟動後每 30 秒（src/instrumentation.ts）
- * 2. 外部 Cron 呼叫 /api/cron/publish（Serverless 環境）
- * 3. 前台每次讀取公告之前（最後一道保險）
+ * 排程發布：把到期的「已排程」公告改為「已發布」（單一 SQL，成本很低）。
+ * 由兩個地方觸發：
+ * 1. Cloudflare Cron Trigger 每 5 分鐘執行一次（custom-worker.ts）
+ * 2. 前台與後台每次讀取公告之前（保證訪客看到的一定是最新狀態）
  */
 export async function publishDue(): Promise<number> {
-  const now = new Date();
-  const due = await db.announcement.findMany({
-    where: { status: "SCHEDULED", scheduledAt: { lte: now } },
-    select: { id: true, scheduledAt: true },
-  });
-  for (const a of due) {
-    await db.announcement.updateMany({
-      where: { id: a.id, status: "SCHEDULED" },
-      data: { status: "PUBLISHED", publishedAt: a.scheduledAt ?? now, scheduledAt: null },
-    });
-  }
-  return due.length;
+  const now = nowIso();
+  return run(
+    `UPDATE "Announcement" SET "status" = 'PUBLISHED', "publishedAt" = "scheduledAt", "scheduledAt" = NULL, "updatedAt" = ?
+     WHERE "status" = 'SCHEDULED' AND "scheduledAt" <= ?`,
+    now,
+    now,
+  );
 }
 
-export const cardInclude = {
-  categories: { orderBy: [{ kind: "asc" }, { sortOrder: "asc" }] },
-} satisfies Prisma.AnnouncementInclude;
+/** 一次查詢取回多則公告的分類，避免逐筆查詢 */
+async function withCategories(items: Announcement[]): Promise<AnnouncementCard[]> {
+  if (!items.length) return [];
+  const ids = items.slice(0, 90).map((a) => a.id);
+  const rows = await all<Category & { announcementId: string }>(
+    `SELECT ac."announcementId", c.* FROM "AnnouncementCategory" ac JOIN "Category" c ON c."id" = ac."categoryId"
+     WHERE ac."announcementId" IN (${placeholders(ids.length)}) ORDER BY c."sortOrder", c."name"`,
+    ...ids,
+  );
+  const map = new Map<string, Category[]>();
+  for (const { announcementId, ...c } of rows) {
+    const list = map.get(announcementId) ?? [];
+    list.push(c);
+    map.set(announcementId, list);
+  }
+  return items.map((a) => ({ ...a, categories: map.get(a.id) ?? [] }));
+}
 
-export type AnnouncementCard = Prisma.AnnouncementGetPayload<{ include: typeof cardInclude }>;
+async function toDetail(a: Announcement): Promise<AnnouncementDetail> {
+  const [[card], attachments, images] = await Promise.all([
+    withCategories([a]),
+    all<Attachment>(`SELECT * FROM "Attachment" WHERE "announcementId" = ? ORDER BY "sortOrder"`, a.id),
+    all<AnnouncementImage>(`SELECT * FROM "AnnouncementImage" WHERE "announcementId" = ? ORDER BY "sortOrder"`, a.id),
+  ]);
+  return { ...card, attachments, images };
+}
 
-export const detailInclude = {
-  categories: { orderBy: [{ kind: "asc" }, { sortOrder: "asc" }] },
-  attachments: { orderBy: { sortOrder: "asc" } },
-  images: { orderBy: { sortOrder: "asc" } },
-} satisfies Prisma.AnnouncementInclude;
-
-export type AnnouncementDetail = Prisma.AnnouncementGetPayload<{ include: typeof detailInclude }>;
+// ───────────────────────── 前台篩選 ─────────────────────────
 
 export type PublicFilters = {
   q: string;
@@ -52,21 +72,21 @@ export type PublicFilters = {
 
 type RawParams = Record<string, string | string[] | undefined>;
 
-const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
+const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
 const list = (v: string | string[] | undefined) =>
-  first(v)
+  one(v)
     .split(",")
     .map((s) => s.trim())
     .filter((s) => /^[a-z0-9-]{1,40}$/.test(s))
     .slice(0, 20);
 
 export function parseFilters(sp: RawParams): PublicFilters {
-  const feeSlug = first(sp.fee);
+  const feeSlug = one(sp.fee);
   const fee = FEE_TYPES.find((f) => FEE_SLUG[f] === feeSlug) ?? null;
-  const sortRaw = first(sp.sort);
-  const page = Math.max(1, Math.min(500, parseInt(first(sp.page), 10) || 1));
+  const sortRaw = one(sp.sort);
+  const page = Math.max(1, Math.min(500, parseInt(one(sp.page), 10) || 1));
   return {
-    q: first(sp.q).trim().slice(0, 60),
+    q: one(sp.q).trim().slice(0, 60),
     sources: list(sp.source),
     types: list(sp.type),
     fee,
@@ -91,121 +111,243 @@ export function hasActiveFilters(f: PublicFilters): boolean {
   return Boolean(f.q || f.sources.length || f.types.length || f.fee);
 }
 
-function publicWhere(f: PublicFilters): Prisma.AnnouncementWhereInput {
-  const and: Prisma.AnnouncementWhereInput[] = [{ status: "PUBLISHED" }];
-  if (f.q) {
-    const contains = { contains: f.q, mode: "insensitive" as const };
-    and.push({
-      OR: [
-        { title: contains },
-        { subtitle: contains },
-        { summary: contains },
-        { contentText: contains },
-        { organizer: contains },
-        { location: contains },
-        { categories: { some: { name: contains } } },
-      ],
-    });
-  }
-  // 不同分類之間為「且」，同一分類內多選為「或」
-  if (f.sources.length) and.push({ categories: { some: { kind: "SOURCE", slug: { in: f.sources } } } });
-  if (f.types.length) and.push({ categories: { some: { kind: "EVENT_TYPE", slug: { in: f.types } } } });
-  if (f.fee) and.push({ feeType: f.fee });
-  return { AND: and };
+type Where = { sql: string[]; params: (string | number)[] };
+
+const SEARCH_COLUMNS = ["title", "subtitle", "summary", "content", "organizer", "location", "slug"];
+
+function addSearch(w: Where, q: string) {
+  const pattern = likePattern(q);
+  const cols = SEARCH_COLUMNS.map((c) => `a."${c}" LIKE ? ESCAPE '\\'`);
+  w.sql.push(
+    `(${cols.join(" OR ")} OR EXISTS (SELECT 1 FROM "AnnouncementCategory" ac JOIN "Category" c ON c."id" = ac."categoryId"
+      WHERE ac."announcementId" = a."id" AND c."name" LIKE ? ESCAPE '\\'))`,
+  );
+  w.params.push(...SEARCH_COLUMNS.map(() => pattern), pattern);
+}
+
+function addCategoryFilter(w: Where, kind: "SOURCE" | "EVENT_TYPE", slugs: string[]) {
+  w.sql.push(
+    `EXISTS (SELECT 1 FROM "AnnouncementCategory" ac JOIN "Category" c ON c."id" = ac."categoryId"
+      WHERE ac."announcementId" = a."id" AND c."kind" = '${kind}' AND c."slug" IN (${placeholders(slugs.length)}))`,
+  );
+  w.params.push(...slugs);
 }
 
 export async function listPublic(f: PublicFilters, pageSize = PAGE_SIZE) {
   await publishDue();
-  const where = publicWhere(f);
-  const orderBy: Prisma.AnnouncementOrderByWithRelationInput[] =
+  const w: Where = { sql: [`a."status" = 'PUBLISHED'`], params: [] };
+  if (f.q) addSearch(w, f.q);
+  // 不同分類之間為「且」，同一分類內多選為「或」
+  if (f.sources.length) addCategoryFilter(w, "SOURCE", f.sources);
+  if (f.types.length) addCategoryFilter(w, "EVENT_TYPE", f.types);
+  if (f.fee) {
+    w.sql.push(`a."feeType" = ?`);
+    w.params.push(f.fee);
+  }
+  const where = w.sql.join(" AND ");
+  const orderBy =
     f.sort === "event_asc"
-      ? [{ startAt: { sort: "asc", nulls: "last" } }, { publishedAt: "desc" }]
+      ? `a."startAt" IS NULL, a."startAt" ASC, a."publishedAt" DESC`
       : f.sort === "event_desc"
-        ? [{ startAt: { sort: "desc", nulls: "last" } }, { publishedAt: "desc" }]
-        : [{ isPinned: "desc" }, { publishedAt: "desc" }];
-  const total = await db.announcement.count({ where });
+        ? `a."startAt" IS NULL, a."startAt" DESC, a."publishedAt" DESC`
+        : `a."isPinned" DESC, a."publishedAt" DESC`;
+
+  const total = (await first<{ n: number }>(`SELECT COUNT(*) AS n FROM "Announcement" a WHERE ${where}`, ...w.params))?.n ?? 0;
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const page = Math.min(f.page, pages);
-  const items = await db.announcement.findMany({
-    where,
-    orderBy,
-    include: cardInclude,
-    skip: (page - 1) * pageSize,
-    take: pageSize,
-  });
-  return { items, total, pages, page };
+  const rows = await all<AnnouncementRow>(
+    `SELECT a.* FROM "Announcement" a WHERE ${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`,
+    ...w.params,
+    pageSize,
+    (page - 1) * pageSize,
+  );
+  return { items: await withCategories(rows.map(mapAnnouncement)), total, pages, page };
 }
 
 export async function getFeatured(): Promise<AnnouncementCard[]> {
-  await publishDue();
-  return db.announcement.findMany({
-    where: { status: "PUBLISHED", isFeatured: true },
-    orderBy: [{ isPinned: "desc" }, { publishedAt: "desc" }],
-    include: cardInclude,
-    take: 3,
-  });
+  const rows = await all<AnnouncementRow>(
+    `SELECT * FROM "Announcement" WHERE "status" = 'PUBLISHED' AND "isFeatured" = 1 ORDER BY "isPinned" DESC, "publishedAt" DESC LIMIT 3`,
+  );
+  return withCategories(rows.map(mapAnnouncement));
 }
 
-export async function getNextUp(): Promise<AnnouncementCard | null> {
-  return db.announcement.findFirst({
-    where: { status: "PUBLISHED", startAt: { gte: new Date() } },
-    orderBy: { startAt: "asc" },
-    include: cardInclude,
-  });
+export async function getNextUp(): Promise<Announcement | null> {
+  const row = await first<AnnouncementRow>(
+    `SELECT * FROM "Announcement" WHERE "status" = 'PUBLISHED' AND "startAt" >= ? ORDER BY "startAt" ASC LIMIT 1`,
+    nowIso(),
+  );
+  return row ? mapAnnouncement(row) : null;
 }
 
 export async function getPublicStats() {
-  const now = new Date();
-  const [total, upcoming, free] = await Promise.all([
-    db.announcement.count({ where: { status: "PUBLISHED" } }),
-    db.announcement.count({ where: { status: "PUBLISHED", startAt: { gte: now } } }),
-    db.announcement.count({ where: { status: "PUBLISHED", feeType: "FREE" } }),
-  ]);
-  return { total, upcoming, free };
+  const row = await first<{ total: number; upcoming: number; free: number }>(
+    `SELECT COUNT(*) AS total,
+            COALESCE(SUM("startAt" >= ?), 0) AS upcoming,
+            COALESCE(SUM("feeType" = 'FREE'), 0) AS free
+     FROM "Announcement" WHERE "status" = 'PUBLISHED'`,
+    nowIso(),
+  );
+  return row ?? { total: 0, upcoming: 0, free: 0 };
 }
 
 export async function getPublicBySlug(slug: string): Promise<AnnouncementDetail | null> {
   if (!/^[a-z0-9-]{1,60}$/.test(slug)) return null;
   await publishDue();
-  return db.announcement.findFirst({ where: { slug, status: "PUBLISHED" }, include: detailInclude });
+  const row = await first<AnnouncementRow>(`SELECT * FROM "Announcement" WHERE "slug" = ? AND "status" = 'PUBLISHED'`, slug);
+  return row ? toDetail(mapAnnouncement(row)) : null;
 }
 
 export async function getRelated(a: AnnouncementDetail, take = 3): Promise<AnnouncementCard[]> {
   const catIds = a.categories.filter((c) => c.kind !== "TAG").map((c) => c.id);
-  const base: Prisma.AnnouncementWhereInput = { status: "PUBLISHED", id: { not: a.id } };
-  const related = catIds.length
-    ? await db.announcement.findMany({
-        where: { ...base, categories: { some: { id: { in: catIds } } } },
-        orderBy: { publishedAt: "desc" },
-        include: cardInclude,
-        take,
-      })
-    : [];
-  if (related.length >= take) return related;
-  const more = await db.announcement.findMany({
-    where: { ...base, id: { notIn: [a.id, ...related.map((r) => r.id)] } },
-    orderBy: { publishedAt: "desc" },
-    include: cardInclude,
-    take: take - related.length,
-  });
-  return [...related, ...more];
+  // 有共同分類的排前面，其餘以最新發布補滿
+  const rows = await all<AnnouncementRow>(
+    `SELECT a.*, ${
+      catIds.length
+        ? `EXISTS (SELECT 1 FROM "AnnouncementCategory" ac WHERE ac."announcementId" = a."id" AND ac."categoryId" IN (${placeholders(catIds.length)}))`
+        : "0"
+    } AS related
+     FROM "Announcement" a WHERE a."status" = 'PUBLISHED' AND a."id" != ?
+     ORDER BY related DESC, a."publishedAt" DESC LIMIT ?`,
+    ...catIds,
+    a.id,
+    take,
+  );
+  return withCategories(rows.map(mapAnnouncement));
 }
 
 /** 分類與其「已發布」公告數量 */
 export async function getCategoriesWithCounts() {
-  const cats = await db.category.findMany({
-    where: { kind: { in: ["SOURCE", "EVENT_TYPE"] } },
-    orderBy: [{ kind: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
-    include: { _count: { select: { announcements: { where: { status: "PUBLISHED" } } } } },
-  });
-  return cats.map((c) => ({
-    id: c.id,
-    kind: c.kind,
-    name: c.name,
-    slug: c.slug,
-    color: c.color,
-    count: c._count.announcements,
-  }));
+  return all<Category & { count: number }>(
+    `SELECT c.*, (SELECT COUNT(*) FROM "AnnouncementCategory" ac JOIN "Announcement" a ON a."id" = ac."announcementId"
+                  WHERE ac."categoryId" = c."id" AND a."status" = 'PUBLISHED') AS count
+     FROM "Category" c WHERE c."kind" IN ('SOURCE', 'EVENT_TYPE') ORDER BY c."kind", c."sortOrder", c."name"`,
+  );
 }
 
 export type CategoryWithCount = Awaited<ReturnType<typeof getCategoriesWithCounts>>[number];
+
+// ───────────────────────── 後台查詢 ─────────────────────────
+
+export async function getAnnouncementById(id: string): Promise<AnnouncementDetail | null> {
+  if (!/^[a-z0-9]{1,40}$/i.test(id)) return null;
+  const row = await first<AnnouncementRow>(`SELECT * FROM "Announcement" WHERE "id" = ?`, id);
+  return row ? toDetail(mapAnnouncement(row)) : null;
+}
+
+export const ADMIN_SORTS = {
+  updated: "最後更新",
+  published: "發布時間",
+  event_asc: "活動日期（近→遠）",
+  event_desc: "活動日期（遠→近）",
+} as const;
+export type AdminSort = keyof typeof ADMIN_SORTS;
+
+export type AdminFilters = {
+  q: string;
+  status: StatusKey | null;
+  showAll: boolean;
+  fee: FeeTypeKey | null;
+  category: string;
+  sort: AdminSort;
+  page: number;
+};
+
+export function parseAdminFilters(sp: RawParams) {
+  const statusRaw = one(sp.status);
+  const feeRaw = one(sp.fee);
+  const sortRaw = one(sp.sort);
+  const filters: AdminFilters = {
+    q: one(sp.q).trim().slice(0, 60),
+    status: (STATUSES as readonly string[]).includes(statusRaw) ? (statusRaw as StatusKey) : null,
+    showAll: statusRaw === "all",
+    fee: (FEE_TYPES as readonly string[]).includes(feeRaw) ? (feeRaw as FeeTypeKey) : null,
+    category: /^[a-z0-9_]{1,40}$/i.test(one(sp.category)) ? one(sp.category) : "",
+    sort: sortRaw in ADMIN_SORTS ? (sortRaw as AdminSort) : "updated",
+    page: Math.max(1, parseInt(one(sp.page), 10) || 1),
+  };
+  return { filters, raw: { status: statusRaw, fee: feeRaw } };
+}
+
+export async function listAdmin(f: AdminFilters, pageSize = 15) {
+  await publishDue();
+  const w: Where = { sql: [], params: [] };
+  if (f.status) {
+    w.sql.push(`a."status" = ?`);
+    w.params.push(f.status);
+  } else if (!f.showAll) {
+    w.sql.push(`a."status" != 'ARCHIVED'`);
+  }
+  if (f.fee) {
+    w.sql.push(`a."feeType" = ?`);
+    w.params.push(f.fee);
+  }
+  if (f.category) {
+    w.sql.push(`EXISTS (SELECT 1 FROM "AnnouncementCategory" ac WHERE ac."announcementId" = a."id" AND ac."categoryId" = ?)`);
+    w.params.push(f.category);
+  }
+  if (f.q) addSearch(w, f.q);
+  const where = w.sql.length ? w.sql.join(" AND ") : "1 = 1";
+  const orderBy = {
+    updated: `a."updatedAt" DESC`,
+    published: `a."publishedAt" IS NULL, a."publishedAt" DESC`,
+    event_asc: `a."startAt" IS NULL, a."startAt" ASC`,
+    event_desc: `a."startAt" IS NULL, a."startAt" DESC`,
+  }[f.sort];
+
+  const total = (await first<{ n: number }>(`SELECT COUNT(*) AS n FROM "Announcement" a WHERE ${where}`, ...w.params))?.n ?? 0;
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(f.page, pages);
+  const rows = await all<AnnouncementRow>(
+    `SELECT a.* FROM "Announcement" a WHERE ${where} ORDER BY a."isPinned" DESC, ${orderBy} LIMIT ? OFFSET ?`,
+    ...w.params,
+    pageSize,
+    (page - 1) * pageSize,
+  );
+  return { items: await withCategories(rows.map(mapAnnouncement)), total, pages, page };
+}
+
+export async function getDashboard() {
+  await publishDue();
+  const now = nowIso();
+  const [groups, upcoming, recent, scheduled] = await Promise.all([
+    all<{ status: StatusKey; n: number }>(`SELECT "status", COUNT(*) AS n FROM "Announcement" GROUP BY "status"`),
+    all<AnnouncementRow>(`SELECT * FROM "Announcement" WHERE "status" = 'PUBLISHED' AND "startAt" >= ? ORDER BY "startAt" ASC LIMIT 5`, now),
+    all<AnnouncementRow>(`SELECT * FROM "Announcement" WHERE "status" != 'ARCHIVED' ORDER BY "updatedAt" DESC LIMIT 6`),
+    all<AnnouncementRow>(`SELECT * FROM "Announcement" WHERE "status" = 'SCHEDULED' ORDER BY "scheduledAt" ASC LIMIT 5`),
+  ]);
+  const upcomingCount =
+    (await first<{ n: number }>(`SELECT COUNT(*) AS n FROM "Announcement" WHERE "status" = 'PUBLISHED' AND "startAt" >= ?`, now))?.n ?? 0;
+  return {
+    counts: Object.fromEntries(groups.map((g) => [g.status, g.n])) as Partial<Record<StatusKey, number>>,
+    total: groups.reduce((n, g) => n + g.n, 0),
+    upcomingCount,
+    upcoming: upcoming.map(mapAnnouncement),
+    recent: recent.map(mapAnnouncement),
+    scheduled: scheduled.map(mapAnnouncement),
+  };
+}
+
+export async function listCategories(kinds: ("SOURCE" | "EVENT_TYPE" | "TAG")[]) {
+  return all<Category>(
+    `SELECT * FROM "Category" WHERE "kind" IN (${placeholders(kinds.length)}) ORDER BY "kind", "sortOrder", "name"`,
+    ...kinds,
+  );
+}
+
+export async function listCategoriesWithUsage() {
+  return all<Category & { count: number }>(
+    `SELECT c.*, (SELECT COUNT(*) FROM "AnnouncementCategory" ac WHERE ac."categoryId" = c."id") AS count
+     FROM "Category" c ORDER BY c."kind", c."sortOrder", c."name"`,
+  );
+}
+
+/** 產生不重複的 7 碼短網址代稱（排除容易混淆的字元） */
+export async function randomSlug(): Promise<string> {
+  const alphabet = "abcdefghjkmnpqrstuvwxyz23456789";
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const bytes = crypto.getRandomValues(new Uint8Array(7));
+    const slug = Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
+    if (!(await first(`SELECT 1 AS x FROM "Announcement" WHERE "slug" = ?`, slug))) return slug;
+  }
+  return crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+}

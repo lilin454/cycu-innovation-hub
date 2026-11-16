@@ -1,0 +1,5 @@
+NEXTJS_ENV=development
+# 第一次登入用：資料庫還沒有任何管理員時，用這組帳密登入就會自動建立總管理員
+ADMIN_ACCOUNT=
+ADMIN_PASSWORD=
+ADMIN_DISPLAY_NAME=總管理員

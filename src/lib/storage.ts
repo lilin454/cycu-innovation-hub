@@ -1,17 +1,17 @@
 import "server-only";
-import crypto from "node:crypto";
-import fs from "node:fs/promises";
-import path from "node:path";
+import { env } from "./db";
 import { FILE_MAX_BYTES, IMAGE_MAX_BYTES } from "./constants";
 
 /**
- * 檔案儲存抽象層。
- * STORAGE_DRIVER=local → 專案下的 uploads/（開發、自架主機）
- * STORAGE_DRIVER=s3    → S3 相容物件儲存（AWS S3 / Cloudflare R2 / MinIO）
- * 不論哪一種，對外網址都是 /files/<key>，由 Route Handler 串流輸出。
+ * 檔案儲存：Cloudflare Workers KV（免費方案即可使用，不需要綁定付款方式）。
+ * 對外網址一律是 /files/<key>，由 Route Handler 讀出後輸出。
+ * 免費額度：總容量 1GB、單一檔案 25MB、每天 1,000 次寫入、100,000 次讀取。
  */
 
 type FileRule = { mime: string; accept: string[]; magic: "jpeg" | "png" | "gif" | "webp" | "pdf" | "zip" | "ole" | "text" };
+
+const OOXML = "application/vnd.openxmlformats-officedocument.";
+const ODF = "application/vnd.oasis.opendocument.";
 
 const RULES: Record<string, FileRule> = {
   jpg: { mime: "image/jpeg", accept: ["image/jpeg"], magic: "jpeg" },
@@ -23,32 +23,12 @@ const RULES: Record<string, FileRule> = {
   doc: { mime: "application/msword", accept: ["application/msword"], magic: "ole" },
   xls: { mime: "application/vnd.ms-excel", accept: ["application/vnd.ms-excel"], magic: "ole" },
   ppt: { mime: "application/vnd.ms-powerpoint", accept: ["application/vnd.ms-powerpoint"], magic: "ole" },
-  docx: {
-    mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    accept: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
-    magic: "zip",
-  },
-  xlsx: {
-    mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    accept: ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
-    magic: "zip",
-  },
-  pptx: {
-    mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    accept: ["application/vnd.openxmlformats-officedocument.presentationml.presentation"],
-    magic: "zip",
-  },
-  odt: { mime: "application/vnd.oasis.opendocument.text", accept: ["application/vnd.oasis.opendocument.text"], magic: "zip" },
-  ods: {
-    mime: "application/vnd.oasis.opendocument.spreadsheet",
-    accept: ["application/vnd.oasis.opendocument.spreadsheet"],
-    magic: "zip",
-  },
-  odp: {
-    mime: "application/vnd.oasis.opendocument.presentation",
-    accept: ["application/vnd.oasis.opendocument.presentation"],
-    magic: "zip",
-  },
+  docx: { mime: `${OOXML}wordprocessingml.document`, accept: [`${OOXML}wordprocessingml.document`], magic: "zip" },
+  xlsx: { mime: `${OOXML}spreadsheetml.sheet`, accept: [`${OOXML}spreadsheetml.sheet`], magic: "zip" },
+  pptx: { mime: `${OOXML}presentationml.presentation`, accept: [`${OOXML}presentationml.presentation`], magic: "zip" },
+  odt: { mime: `${ODF}text`, accept: [`${ODF}text`], magic: "zip" },
+  ods: { mime: `${ODF}spreadsheet`, accept: [`${ODF}spreadsheet`], magic: "zip" },
+  odp: { mime: `${ODF}presentation`, accept: [`${ODF}presentation`], magic: "zip" },
   zip: { mime: "application/zip", accept: ["application/zip", "application/x-zip-compressed"], magic: "zip" },
   txt: { mime: "text/plain; charset=utf-8", accept: ["text/plain"], magic: "text" },
   csv: { mime: "text/csv; charset=utf-8", accept: ["text/csv", "application/vnd.ms-excel", "text/plain"], magic: "text" },
@@ -56,23 +36,26 @@ const RULES: Record<string, FileRule> = {
 
 const IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "gif", "webp"]);
 
-function checkMagic(buf: Buffer, kind: FileRule["magic"]): boolean {
-  const hex = buf.subarray(0, 12).toString("hex");
+function startsWith(buf: Uint8Array, bytes: number[], offset = 0): boolean {
+  return bytes.every((b, i) => buf[offset + i] === b);
+}
+
+function checkMagic(buf: Uint8Array, kind: FileRule["magic"]): boolean {
   switch (kind) {
     case "jpeg":
-      return hex.startsWith("ffd8ff");
+      return startsWith(buf, [0xff, 0xd8, 0xff]);
     case "png":
-      return hex.startsWith("89504e470d0a1a0a");
+      return startsWith(buf, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
     case "gif":
-      return hex.startsWith("474946383761") || hex.startsWith("474946383961");
+      return startsWith(buf, [0x47, 0x49, 0x46, 0x38]) && (buf[4] === 0x37 || buf[4] === 0x39) && buf[5] === 0x61;
     case "webp":
-      return hex.startsWith("52494646") && buf.subarray(8, 12).toString("ascii") === "WEBP";
+      return startsWith(buf, [0x52, 0x49, 0x46, 0x46]) && startsWith(buf, [0x57, 0x45, 0x42, 0x50], 8);
     case "pdf":
-      return buf.subarray(0, 5).toString("ascii") === "%PDF-";
+      return startsWith(buf, [0x25, 0x50, 0x44, 0x46, 0x2d]);
     case "zip":
-      return hex.startsWith("504b0304") || hex.startsWith("504b0506");
+      return startsWith(buf, [0x50, 0x4b, 0x03, 0x04]) || startsWith(buf, [0x50, 0x4b, 0x05, 0x06]);
     case "ole":
-      return hex.startsWith("d0cf11e0a1b11ae1");
+      return startsWith(buf, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
     case "text":
       return !buf.subarray(0, 4096).includes(0);
   }
@@ -89,7 +72,11 @@ export function extOf(name: string): string {
 
 /** 驗證副檔名、MIME Type、檔案大小與檔頭，通過後才寫入儲存空間 */
 export async function saveUpload(file: File, kind: "image" | "file"): Promise<StoredFile> {
-  const originalName = path.basename(file.name || "file").replace(/[\u0000-\u001f<>:"/\\|?*]/g, "_").slice(0, 150);
+  const originalName = (file.name || "file")
+    .split(/[\\/]/)
+    .pop()!
+    .replace(/[\u0000-\u001f<>:"|?*]/g, "_")
+    .slice(0, 150);
   const ext = extOf(originalName);
   const rule = RULES[ext];
   if (!rule || (kind === "image" && !IMAGE_EXTS.has(ext))) {
@@ -108,18 +95,21 @@ export async function saveUpload(file: File, kind: "image" | "file"): Promise<St
     (!IMAGE_EXTS.has(ext) && (clientMime === "" || clientMime === "application/octet-stream"));
   if (!mimeOk) throw new UploadError("檔案類型與副檔名不符。");
 
-  const buf = Buffer.from(await file.arrayBuffer());
-  if (!checkMagic(buf, rule.magic)) throw new UploadError("檔案內容與副檔名不符，請確認檔案沒有損壞。");
+  const data = await file.arrayBuffer();
+  if (!checkMagic(new Uint8Array(data, 0, Math.min(data.byteLength, 4096)), rule.magic)) {
+    throw new UploadError("檔案內容與副檔名不符，請確認檔案沒有損壞。");
+  }
 
   const now = new Date();
+  const random = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, "0")).join("");
   const key = [
     kind === "image" ? "images" : "docs",
     String(now.getUTCFullYear()),
     String(now.getUTCMonth() + 1).padStart(2, "0"),
-    `${crypto.randomBytes(12).toString("hex")}.${ext}`,
+    `${random}.${ext}`,
   ].join("/");
-  await putObject(key, buf, rule.mime);
-  return { key, url: `/files/${key}`, fileName: originalName, fileType: ext, fileSize: buf.length };
+  await env().FILES.put(key, data);
+  return { key, url: `/files/${key}`, fileName: originalName, fileType: ext, fileSize: data.byteLength };
 }
 
 export function mimeForKey(key: string): string {
@@ -130,7 +120,7 @@ export function isImageKey(key: string): boolean {
   return IMAGE_EXTS.has(extOf(key));
 }
 
-/** 只接受我們自己產生的 key 格式，避免路徑穿越 */
+/** 只接受我們自己產生的 key 格式 */
 export function isValidKey(key: string): boolean {
   return /^(images|docs)\/\d{4}\/\d{2}\/[a-f0-9]{24}\.[a-z0-9]{1,5}$/.test(key);
 }
@@ -141,62 +131,11 @@ export function keyFromUrl(url: string | null | undefined): string | null {
   return isValidKey(key) ? key : null;
 }
 
-const driver = () => (process.env.STORAGE_DRIVER === "s3" ? "s3" : "local");
-const localRoot = () => path.resolve(process.env.UPLOAD_DIR || "./uploads");
-
-async function s3() {
-  const { S3Client } = await import("@aws-sdk/client-s3");
-  const g = globalThis as unknown as { __s3?: InstanceType<typeof S3Client> };
-  g.__s3 ??= new S3Client({
-    region: process.env.S3_REGION || "auto",
-    endpoint: process.env.S3_ENDPOINT || undefined,
-    forcePathStyle: process.env.S3_FORCE_PATH_STYLE !== "false",
-    credentials: {
-      accessKeyId: process.env.S3_ACCESS_KEY_ID || "",
-      secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || "",
-    },
-  });
-  return g.__s3;
-}
-
-export async function putObject(key: string, body: Buffer, contentType: string): Promise<void> {
-  if (driver() === "s3") {
-    const { PutObjectCommand } = await import("@aws-sdk/client-s3");
-    await (await s3()).send(
-      new PutObjectCommand({ Bucket: process.env.S3_BUCKET, Key: key, Body: body, ContentType: contentType }),
-    );
-    return;
-  }
-  const full = path.join(localRoot(), key);
-  await fs.mkdir(path.dirname(full), { recursive: true });
-  await fs.writeFile(full, body);
-}
-
-export async function getObject(key: string): Promise<Buffer | null> {
+export async function getObject(key: string): Promise<ArrayBuffer | null> {
   if (!isValidKey(key)) return null;
-  try {
-    if (driver() === "s3") {
-      const { GetObjectCommand } = await import("@aws-sdk/client-s3");
-      const res = await (await s3()).send(new GetObjectCommand({ Bucket: process.env.S3_BUCKET, Key: key }));
-      if (!res.Body) return null;
-      return Buffer.from(await res.Body.transformToByteArray());
-    }
-    return await fs.readFile(path.join(localRoot(), key));
-  } catch {
-    return null;
-  }
+  return env().FILES.get(key, "arrayBuffer");
 }
 
 export async function deleteObject(key: string): Promise<void> {
-  if (!isValidKey(key)) return;
-  try {
-    if (driver() === "s3") {
-      const { DeleteObjectCommand } = await import("@aws-sdk/client-s3");
-      await (await s3()).send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: key }));
-      return;
-    }
-    await fs.unlink(path.join(localRoot(), key));
-  } catch {
-    // 檔案已不存在就略過
-  }
+  if (isValidKey(key)) await env().FILES.delete(key);
 }

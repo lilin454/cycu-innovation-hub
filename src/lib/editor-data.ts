@@ -1,14 +1,11 @@
 import "server-only";
-import { db } from "./db";
-import type { AnnouncementDetail } from "./announcements";
+import { listCategories } from "./announcements";
+import type { AnnouncementDetail } from "./types";
 import { toInputValue } from "./format";
 import type { EditorCategory, EditorInitial } from "@/components/admin/AnnouncementEditor";
 
 export async function getEditorCategories(): Promise<EditorCategory[]> {
-  const cats = await db.category.findMany({
-    where: { kind: { in: ["SOURCE", "EVENT_TYPE"] } },
-    orderBy: [{ kind: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
-  });
+  const cats = await listCategories(["SOURCE", "EVENT_TYPE"]);
   return cats.map((c) => ({ id: c.id, kind: c.kind as "SOURCE" | "EVENT_TYPE", name: c.name, color: c.color }));
 }
 

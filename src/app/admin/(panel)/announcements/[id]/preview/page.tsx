@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
-import { detailInclude } from "@/lib/announcements";
+import { getAnnouncementById } from "@/lib/announcements";
 import { STATUS_LABEL } from "@/lib/constants";
 import { getBaseUrl } from "@/lib/settings";
 import { buildShareText, shareUrl } from "@/lib/share";
@@ -15,7 +14,7 @@ export const metadata: Metadata = { title: "預覽公告" };
 export default async function PreviewPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAdmin();
   const { id } = await params;
-  const a = await db.announcement.findUnique({ where: { id }, include: detailInclude });
+  const a = await getAnnouncementById(id);
   if (!a) notFound();
   const base = await getBaseUrl();
   return (

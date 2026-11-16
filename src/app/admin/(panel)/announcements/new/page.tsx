@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/auth";
 import { emptyInitial, getEditorCategories } from "@/lib/editor-data";
 import { getBaseUrl } from "@/lib/settings";
-import { randomSlug } from "@/lib/slug";
+import { randomSlug } from "@/lib/announcements";
 import { AnnouncementEditor } from "@/components/admin/AnnouncementEditor";
 
 export const metadata: Metadata = { title: "新增公告" };

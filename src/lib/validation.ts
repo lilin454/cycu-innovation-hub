@@ -26,7 +26,7 @@ export const announcementSchema = z.object({
     .min(3, "網址代稱至少 3 個字元")
     .max(60, "網址代稱不可超過 60 個字元"),
   coverImage: z.union([fileUrl, z.literal("")]),
-  content: z.string().max(300_000, "內文過長"),
+  content: z.string().max(50_000, "內文過長（上限 5 萬字）"),
   categoryIds: z.array(z.string().min(1).max(40)).max(40),
   customTags: z.array(text(20).min(1)).max(12),
   feeType: z.enum(FEE_TYPES),

@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { headers } from "next/headers";
-import { db } from "./db";
+import { all, getVar } from "./db";
 
 export const SETTING_DEFAULTS = {
   siteName: "中原大學創新創業發展社",
@@ -37,7 +37,7 @@ export type Settings = Record<SettingKey, string>;
 export const getSettings = cache(async (): Promise<Settings> => {
   const out: Settings = { ...SETTING_DEFAULTS };
   try {
-    const rows = await db.siteSetting.findMany();
+    const rows = await all<{ key: string; value: string }>(`SELECT "key", "value" FROM "SiteSetting"`);
     for (const row of rows) {
       if (row.key in out) out[row.key as SettingKey] = row.value;
     }
@@ -49,8 +49,8 @@ export const getSettings = cache(async (): Promise<Settings> => {
 
 /** 網站對外網址：優先使用 SITE_URL，否則從請求標頭推得 */
 export async function getBaseUrl(): Promise<string> {
-  const env = process.env.SITE_URL?.trim().replace(/\/+$/, "");
-  if (env) return env;
+  const fromEnv = getVar("SITE_URL").replace(/\/+$/, "");
+  if (fromEnv) return fromEnv;
   const h = await headers();
   const host = h.get("x-forwarded-host") || h.get("host") || "localhost:3000";
   const proto = h.get("x-forwarded-proto") || (host.startsWith("localhost") ? "http" : "https");

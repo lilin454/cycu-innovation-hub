@@ -1,8 +1,10 @@
+import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   poweredByHeader: false,
   experimental: {
-    serverActions: { bodySizeLimit: "4mb" },
+    serverActions: { bodySizeLimit: "2mb" },
   },
   async headers() {
     const security = [
@@ -21,4 +23,8 @@ const nextConfig = {
     ];
   },
 };
+
+// 讓 `npm run dev` 也能使用本機模擬的 D1 與 KV
+initOpenNextCloudflareForDev();
+
 export default nextConfig;

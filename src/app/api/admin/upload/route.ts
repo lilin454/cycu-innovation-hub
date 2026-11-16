@@ -2,8 +2,6 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { saveUpload, UploadError } from "@/lib/storage";
 
-export const runtime = "nodejs";
-
 export async function POST(req: Request) {
   if (!(await getCurrentUser())) {
     return NextResponse.json({ error: "尚未登入或登入已過期，請重新登入。" }, { status: 401 });

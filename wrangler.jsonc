@@ -1,0 +1,40 @@
+// Cloudflare Workers 設定（免費方案即可）
+// 部署前請把 database_id 與 kv id 換成你帳號中實際建立的資源 ID（見 README）
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cycu-innovation-board",
+  "main": "./custom-worker.ts",
+  "compatibility_date": "2025-09-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  // 資料庫：Cloudflare D1
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cycu-board",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // 圖片與附件：Workers KV
+  "kv_namespaces": [
+    {
+      "binding": "FILES",
+      "id": "00000000000000000000000000000000"
+    }
+  ],
+  // 排程發布：每 5 分鐘檢查一次到期的「已排程」公告
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
+  "vars": {
+    // 網站對外網址（結尾不要加 /）。留空時會自動使用當下的網域
+    "SITE_URL": ""
+  },
+  "observability": {
+    "enabled": true
+  }
+}

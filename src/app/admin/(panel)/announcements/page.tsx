@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import type { Prisma } from "@prisma/client";
-import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
-import { publishDue } from "@/lib/announcements";
-import { FEE_LABEL, FEE_TYPES, STATUS_LABEL, STATUSES, type FeeTypeKey, type StatusKey } from "@/lib/constants";
+import { ADMIN_SORTS, listAdmin, listCategories, parseAdminFilters } from "@/lib/announcements";
+import { FEE_LABEL, FEE_TYPES, STATUS_LABEL, STATUSES } from "@/lib/constants";
 import { feeBadge, formatDateTime, formatRange } from "@/lib/format";
 import { getBaseUrl } from "@/lib/settings";
 import { buildShareText, shareUrl } from "@/lib/share";
@@ -13,64 +11,19 @@ import { StatusBadge } from "@/components/admin/StatusBadge";
 
 export const metadata: Metadata = { title: "公告管理" };
 
-const PAGE_SIZE = 15;
-const ADMIN_SORTS = {
-  updated: "最後更新",
-  published: "發布時間",
-  event_asc: "活動日期（近→遠）",
-  event_desc: "活動日期（遠→近）",
-} as const;
-
 type SP = Record<string, string | string[] | undefined>;
-const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
 
 export default async function AdminAnnouncementsPage({ searchParams }: { searchParams: Promise<SP> }) {
   const me = await requireAdmin();
-  await publishDue();
-  const sp = await searchParams;
-  const q = one(sp.q).trim().slice(0, 60);
-  const statusRaw = one(sp.status);
-  const status = (STATUSES as readonly string[]).includes(statusRaw) ? (statusRaw as StatusKey) : null;
-  const showAll = statusRaw === "all";
-  const feeRaw = one(sp.fee);
-  const fee = (FEE_TYPES as readonly string[]).includes(feeRaw) ? (feeRaw as FeeTypeKey) : null;
-  const category = one(sp.category);
-  const sort = (one(sp.sort) in ADMIN_SORTS ? one(sp.sort) : "updated") as keyof typeof ADMIN_SORTS;
-  const page = Math.max(1, parseInt(one(sp.page), 10) || 1);
-
-  const and: Prisma.AnnouncementWhereInput[] = [];
-  if (status) and.push({ status });
-  else if (!showAll) and.push({ status: { not: "ARCHIVED" } });
-  if (fee) and.push({ feeType: fee });
-  if (category) and.push({ categories: { some: { id: category } } });
-  if (q) {
-    const contains = { contains: q, mode: "insensitive" as const };
-    and.push({ OR: [{ title: contains }, { summary: contains }, { organizer: contains }, { slug: contains }, { contentText: contains }] });
-  }
-  const where: Prisma.AnnouncementWhereInput = { AND: and };
-  const orderBy: Prisma.AnnouncementOrderByWithRelationInput[] =
-    sort === "event_asc"
-      ? [{ startAt: { sort: "asc", nulls: "last" } }]
-      : sort === "event_desc"
-        ? [{ startAt: { sort: "desc", nulls: "last" } }]
-        : sort === "published"
-          ? [{ publishedAt: { sort: "desc", nulls: "last" } }]
-          : [{ updatedAt: "desc" }];
-
-  const [total, cats, base] = await Promise.all([
-    db.announcement.count({ where }),
-    db.category.findMany({ where: { kind: { in: ["SOURCE", "EVENT_TYPE"] } }, orderBy: [{ kind: "asc" }, { sortOrder: "asc" }] }),
+  const { filters, raw } = parseAdminFilters(await searchParams);
+  const { q, fee, category, sort } = filters;
+  const statusRaw = raw.status;
+  const feeRaw = raw.fee;
+  const [{ items, total, pages, page: current }, cats, base] = await Promise.all([
+    listAdmin(filters),
+    listCategories(["SOURCE", "EVENT_TYPE"]),
     getBaseUrl(),
   ]);
-  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const current = Math.min(page, pages);
-  const items = await db.announcement.findMany({
-    where,
-    orderBy: [{ isPinned: "desc" }, ...orderBy],
-    include: { categories: { orderBy: [{ kind: "asc" }, { sortOrder: "asc" }] } },
-    skip: (current - 1) * PAGE_SIZE,
-    take: PAGE_SIZE,
-  });
 
   const qs = (patch: Record<string, string>) => {
     const p = new URLSearchParams();

@@ -1,45 +1,19 @@
 import Link from "next/link";
-import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
-import { publishDue } from "@/lib/announcements";
+import { getDashboard } from "@/lib/announcements";
 import { formatDateTime, formatRange } from "@/lib/format";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 
 export default async function DashboardPage() {
   const user = await requireAdmin();
-  await publishDue();
-  const now = new Date();
-  const [groups, upcoming, recent, scheduled] = await Promise.all([
-    db.announcement.groupBy({ by: ["status"], _count: { _all: true } }),
-    db.announcement.findMany({
-      where: { status: "PUBLISHED", startAt: { gte: now } },
-      orderBy: { startAt: "asc" },
-      take: 5,
-      select: { id: true, title: true, startAt: true, endAt: true, location: true },
-    }),
-    db.announcement.findMany({
-      where: { status: { not: "ARCHIVED" } },
-      orderBy: { updatedAt: "desc" },
-      take: 6,
-      select: { id: true, title: true, status: true, updatedAt: true },
-    }),
-    db.announcement.findMany({
-      where: { status: "SCHEDULED" },
-      orderBy: { scheduledAt: "asc" },
-      take: 5,
-      select: { id: true, title: true, scheduledAt: true },
-    }),
-  ]);
-  const count = (s: string) => groups.find((g) => g.status === s)?._count._all ?? 0;
-  const total = groups.reduce((n, g) => n + g._count._all, 0);
-  const upcomingCount = await db.announcement.count({ where: { status: "PUBLISHED", startAt: { gte: now } } });
+  const { counts, total, upcomingCount, upcoming, recent, scheduled } = await getDashboard();
 
   const stats = [
     { label: "公告總數", n: total, href: "/admin/announcements?status=all" },
-    { label: "已發布", n: count("PUBLISHED"), href: "/admin/announcements?status=PUBLISHED" },
-    { label: "草稿", n: count("DRAFT"), href: "/admin/announcements?status=DRAFT" },
-    { label: "已排程", n: count("SCHEDULED"), href: "/admin/announcements?status=SCHEDULED" },
-    { label: "已下架", n: count("UNPUBLISHED"), href: "/admin/announcements?status=UNPUBLISHED" },
+    { label: "已發布", n: counts.PUBLISHED ?? 0, href: "/admin/announcements?status=PUBLISHED" },
+    { label: "草稿", n: counts.DRAFT ?? 0, href: "/admin/announcements?status=DRAFT" },
+    { label: "已排程", n: counts.SCHEDULED ?? 0, href: "/admin/announcements?status=SCHEDULED" },
+    { label: "已下架", n: counts.UNPUBLISHED ?? 0, href: "/admin/announcements?status=UNPUBLISHED" },
     { label: "即將舉辦", n: upcomingCount, href: "/admin/announcements?status=PUBLISHED&sort=event_asc" },
   ];
 

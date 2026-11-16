@@ -1,8 +1,8 @@
 import Link from "next/link";
 import type { AnnouncementDetail } from "@/lib/announcements";
 import { formatBytes, formatDate, formatDateTime, formatFee, formatRange } from "@/lib/format";
-import { sanitizeContent } from "@/lib/sanitize";
 import { youtubeEmbedUrl, youtubeId } from "@/lib/youtube";
+import { Content } from "./Content";
 import { Cover } from "./Cover";
 import { ShareBar } from "./ShareBar";
 import { TagList } from "./Tags";
@@ -34,7 +34,7 @@ export function AnnouncementView({
   const ended = (a.endAt ?? a.startAt) ? (a.endAt ?? a.startAt)! < new Date() : false;
   const typeName = a.categories.find((c) => c.kind === "EVENT_TYPE")?.name ?? "活動";
   const hasContact = a.contactName || a.contactEmail || a.contactPhone || a.contactLine || a.contactOther;
-  const html = sanitizeContent(a.content);
+  const hasContent = a.content.trim().length > 0;
   const videoId = youtubeId(a.youtubeUrl);
 
   return (
@@ -79,9 +79,9 @@ export function AnnouncementView({
             <InfoSheet />
           </div>
 
-          {html.trim() && (
+          {hasContent && (
             <section aria-label="活動內容" className={a.coverImage ? "mt-10" : "mt-10 lg:mt-0"}>
-              <div className="rich" dangerouslySetInnerHTML={{ __html: html }} />
+              <Content text={a.content} />
             </section>
           )}
 

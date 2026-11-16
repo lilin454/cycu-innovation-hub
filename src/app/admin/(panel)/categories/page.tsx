@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { db } from "@/lib/db";
+import { listCategoriesWithUsage } from "@/lib/announcements";
 import { requireOwner } from "@/lib/auth";
 import { CategoryManager, type ManagedCategory } from "@/components/admin/CategoryManager";
 
@@ -7,16 +7,13 @@ export const metadata: Metadata = { title: "分類管理" };
 
 export default async function CategoriesAdminPage() {
   await requireOwner();
-  const rows = await db.category.findMany({
-    orderBy: [{ kind: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
-    include: { _count: { select: { announcements: true } } },
-  });
+  const rows = await listCategoriesWithUsage();
   const categories: ManagedCategory[] = rows.map((c) => ({
     id: c.id,
     kind: c.kind,
     name: c.name,
     color: c.color,
-    count: c._count.announcements,
+    count: c.count,
   }));
   return (
     <div className="mx-auto max-w-5xl">

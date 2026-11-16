@@ -1,284 +1,161 @@
-# 中原大學創新創業發展社｜活動公告平台
+# 中原大學創新創業發展社｜活動公告平台（Cloudflare 免費版）
 
-CYCU Innovation & Entrepreneurship Development Club — 官方公告與活動資訊平台。
+這是 `cloudflare` 分支：為了能完全跑在 **Cloudflare 免費方案**上而精簡過的版本。
+原本的完整版（PostgreSQL、富文字編輯器、一般 Node 主機）保留在 `main` 分支。
 
-一套完整的全端系統：公開的前台網站 + 需要登入的後台 CMS + PostgreSQL 資料庫。
-社團幹部不需要會寫程式，就能新增、編輯、排程發布、複製公告，並一鍵複製適合貼到 LINE 的轉傳文案。
+## 這個版本用了哪些 Cloudflare 服務（全部免費額度內）
 
----
+| 用途 | 服務 | 免費額度 |
+| --- | --- | --- |
+| 網站本體 | Workers（透過 OpenNext 執行 Next.js 15） | 每天 10 萬次請求、每次請求 10 毫秒 CPU、程式壓縮後 3 MiB |
+| 資料庫 | D1（SQLite） | 500 MB、每次請求最多 50 次查詢 |
+| 圖片與附件 | Workers KV | 總量 1 GB、單檔 25 MB、每天 1,000 次寫入、10 萬次讀取 |
+| 排程發布 | Cron Triggers | 每個帳號 5 個 |
 
-## 功能總覽
+不需要綁定信用卡，也不需要任何外部服務。
 
-**前台（不需登入）**
+## 跟完整版（main）的差異
 
-- 首頁：品牌主視覺、下一場活動、精選活動、最新公告、分類入口
-- 搜尋與交叉篩選：關鍵字 ×「活動來源」×「活動類型」×「費用」，並可依發布時間／活動日期排序、分頁
-  （全部以網址參數查詢資料庫，篩選結果的網址可以直接分享）
-- 公告詳細頁 `/a/<短代稱>`：活動資訊、富文字內文、活動圖片、附件下載、聯絡資訊、相關活動
-- 分享：複製網址、一鍵複製轉傳文案、LINE、Instagram 私訊（自動複製文案並開啟 IG 私訊頁）、裝置原生分享
-- 競賽獎金：填寫後以醒目標示顯示在活動頁最上方、公告列表與轉傳文案開頭
-- YouTube 影片：公告可選填 YouTube 連結，影片會內嵌在活動頁
-- SEO：每則公告有自己的 title / description / Open Graph / canonical / Event 結構化資料
-- 404、空資料、搜尋無結果、圖片載入失敗、系統錯誤都有對應畫面
-- 完整 RWD（手機、平板、桌面）
+| 項目 | main | cloudflare |
+| --- | --- | --- |
+| 資料庫 | PostgreSQL + Prisma | D1，直接寫 SQL（參數綁定） |
+| 公告內文 | 富文字編輯器（Tiptap） | 文字框＋簡易標記（見下方） |
+| 內文中的圖片與表格 | 支援 | 不支援；圖片放「活動圖片」，表格請上傳成附件 |
+| 檔案儲存 | 本機磁碟或 S3 | Workers KV |
+| 密碼雜湊 | bcrypt | PBKDF2-SHA256（10 萬次，Web Crypto 內建） |
+| 預定發布 | 伺服器內建計時器（30 秒） | Cron Trigger（每 5 分鐘）＋讀取公告時檢查 |
+| 第一位管理員 | 指令建立 | 用設定好的帳密第一次登入時自動建立 |
 
-**後台 `/admin`（需登入）**
+其餘功能相同：前台搜尋與交叉篩選、公告詳細頁、分享（複製網址／轉傳文案／LINE／IG 私訊）、競賽獎金、YouTube 內嵌、
+後台公告管理、複製公告、排程、置頂與精選、分類管理、系統設定與板塊開關、總管理員／一般管理員權限、管理員帳號管理。
 
-- 總覽：各狀態公告數量、即將舉辦、最近更新、等待自動發布
-- 公告管理：搜尋、依狀態／分類／費用篩選、排序、分頁；編輯、預覽、複製公告、複製網址、複製分享文案、置頂、精選、下架、封存、刪除（有確認視窗）
-- 公告編輯器（A–H 八個區塊＋側邊目錄）：基本資訊、分類與標籤、活動資訊、富文字內文（標題、粗斜底線、文字顏色、清單、引言、分隔線、連結、圖片、表格）、圖片與附件（上傳、排序、改名、刪除）、聯絡與邀請、分享設定（自訂文案＋變數＋即時預覽）、發布設定
-- 公告生命週期：草稿 → 已排程 → 已發布 → 已下架 → 已封存
-- 預定發布：到指定時間會**自動**發布（見下方「排程發布如何運作」）
-- 分類管理：活動來源／活動類型／自訂標籤的新增、改名、換色、排序、刪除（使用中的分類刪除前會提醒）
-- 系統設定：網站名稱、Logo、首頁標語與簡介、社長、社群連結、聯絡方式、頁尾文字、變更密碼
-- 板塊顯示開關：可隱藏首頁的「下一場活動／數字統計／精選活動／分類入口」、「關於」頁面與「活動資訊來源」
-- 管理員帳號（僅總管理員）：新增、改名、調整權限、重設密碼、刪除管理員
-
----
-
-## 技術架構
-
-| 項目 | 使用技術 |
-| --- | --- |
-| 框架 | Next.js 15（App Router）＋ React 19 ＋ TypeScript |
-| 後端 | Next.js Server Actions ＋ Route Handlers |
-| 樣式 | Tailwind CSS v4（品牌色彩系統定義在 `src/app/globals.css`） |
-| 資料庫 | PostgreSQL ＋ Prisma ORM |
-| 登入驗證 | 自行實作：bcrypt 密碼雜湊 ＋ 資料庫 Session ＋ HttpOnly Cookie |
-| 富文字編輯器 | Tiptap v2 |
-| 表單驗證 | Zod（伺服器端） |
-| 內容消毒 | sanitize-html（儲存時與輸出時各做一次） |
-| 檔案儲存 | 本機磁碟（預設）或 S3 相容物件儲存 |
-
-## 專案資料夾結構
+### 內文的簡易標記
 
 ```
-├─ prisma/
-│  ├─ schema.prisma            資料模型（User / Session / Announcement / Category / Attachment …）
-│  ├─ migrations/              資料庫遷移檔
-│  └─ seed.ts                  建立預設分類（加 --demo 會建立示範公告）
-├─ scripts/
-│  ├─ dev-db.mjs               本機開發用 PostgreSQL（免安裝 Docker）
-│  └─ create-admin.ts          建立／重設管理員帳號
-├─ public/brand/               Logo 與合作單位標誌
-├─ brand-assets/               原始品牌素材（備份用）
-├─ src/
-│  ├─ middleware.ts            未登入不得進入 /admin
-│  ├─ instrumentation.ts       伺服器內建排程（每 30 秒檢查預定發布）
-│  ├─ app/
-│  │  ├─ (site)/               前台：首頁、/announcements、/categories、/about、/a/[slug]
-│  │  ├─ admin/
-│  │  │  ├─ login/             登入頁
-│  │  │  ├─ (panel)/           後台各頁（總覽、公告、分類、設定）
-│  │  │  └─ actions.ts         所有後台操作（Server Actions，皆驗證登入）
-│  │  ├─ api/admin/upload/     檔案上傳 API
-│  │  ├─ api/cron/publish/     給外部 Cron 呼叫的排程端點
-│  │  ├─ files/[...key]/       圖片與檔案輸出
-│  │  ├─ download/[id]/        附件下載（保留原始檔名、檢查發布狀態）
-│  │  ├─ not-found.tsx / error.tsx
-│  │  └─ globals.css           品牌色彩、字體、元件樣式
-│  ├─ components/
-│  │  ├─ site/                 前台元件（導覽列、公告列、篩選器、分享列、詳細頁）
-│  │  └─ admin/                後台元件（編輯器、富文字、列表操作、分類管理、設定）
-│  └─ lib/                     auth、storage、sanitize、share（分享文案）、format（日期費用）、validation …
-└─ .env.example                環境變數範本
+# 大標題
+## 小標題
+- 條列清單
+1. 編號清單
+> 引言
+---            （分隔線）
+**粗體**
+空一行 = 換段；網址會自動變成連結
 ```
 
----
+內文一律以文字輸出，不會插入任何 HTML，所以沒有 XSS 的問題。
 
-## 快速開始（本機開發）
+## 本機開發
 
-需要：Node.js 20 以上。**不需要**另外安裝 PostgreSQL 或 Docker。
+需要 Node.js 20 以上。資料庫與檔案儲存由 wrangler 在本機模擬，不用另外安裝。
 
 ```bash
 npm install
 ```
 
 ```bash
-cp .env.example .env
+cp .dev.vars.example .dev.vars
 ```
 
-打開 `.env`，至少修改 `ADMIN_PASSWORD`（10 碼以上）。其餘保持預設即可在本機執行。
-
-開一個終端機視窗啟動本機資料庫（保持開著）：
+打開 `.dev.vars`，填入 `ADMIN_ACCOUNT` 與 `ADMIN_PASSWORD`（10 碼以上）。
 
 ```bash
-npm run db:start
+npm run db:migrate:local
 ```
-
-再開另一個終端機，建立資料表、預設分類與第一位管理員：
-
-```bash
-npm run setup
-```
-
-（想先看看版面，可以再執行 `npm run db:seed -- --demo` 建立三則示範公告。）
-
-啟動網站：
 
 ```bash
 npm run dev
 ```
 
 - 前台：<http://localhost:3000>
-- 後台：<http://localhost:3000/admin>（帳號密碼為 `.env` 中的 `ADMIN_ACCOUNT` / `ADMIN_PASSWORD`）
-
-> Next.js 的前端與後端是同一個程式，`npm run dev` 一個指令就同時啟動兩者。
-
-### 環境變數說明
-
-| 變數 | 說明 |
-| --- | --- |
-| `DATABASE_URL` | PostgreSQL 連線字串 |
-| `SITE_URL` | 網站對外網址，用來產生分享連結與社群預覽。正式環境**務必**設定成實際網域（`https://…`），設定為 https 時登入 Cookie 會自動加上 Secure |
-| `ADMIN_ACCOUNT` / `ADMIN_PASSWORD` / `ADMIN_DISPLAY_NAME` | 只在執行 `npm run admin:create` 時讀取，建立完成後可以把密碼從 `.env` 清掉 |
-| `CRON_SECRET` | 外部 Cron 呼叫 `/api/cron/publish` 時的密鑰（Serverless 部署才需要） |
-| `STORAGE_DRIVER` | `local`（預設）或 `s3` |
-| `UPLOAD_DIR` | 本機儲存的資料夾，預設 `./uploads` |
-| `S3_*` | S3 相容儲存的連線資訊 |
-
-`.env` 已列在 `.gitignore`，不會被提交到 Git。
-
-### 權限分級
-
-| 功能 | 總管理員（OWNER） | 一般管理員（EDITOR） |
-| --- | :---: | :---: |
-| 新增、編輯、發布、排程、下架、封存、複製公告 | ✓ | ✓ |
-| 置頂、精選 | ✓ | ✓ |
-| 上傳圖片與附件 | ✓ | ✓ |
-| 修改自己的密碼 | ✓ | ✓ |
-| 永久刪除公告 | ✓ | — |
-| 分類管理 | ✓ | — |
-| 系統設定、板塊顯示 | ✓ | — |
-| 新增／移除管理員、重設他人密碼 | ✓ | — |
-
-權限在伺服器端檢查，一般管理員即使直接輸入網址或呼叫操作也會被拒絕。系統至少會保留一位總管理員。
-
-### 管理員帳號
-
-- **建立第一位管理員**：在 `.env` 設定帳號密碼後執行 `npm run admin:create`
-- **新增其他管理員**：總管理員登入後到「管理員帳號」頁新增（建議）。也可以把 `.env` 的 `ADMIN_ACCOUNT` 改成新帳號、設定密碼與 `ADMIN_ROLE`（`OWNER` 或 `EDITOR`），再執行一次 `npm run admin:create`
-- **忘記密碼**：對同一個帳號再執行一次 `npm run admin:create` 就會重設密碼，並登出該帳號的所有裝置
-- **平常改密碼**：登入後到「系統設定」最下方
-- 系統沒有公開註冊功能
-
-### 常用指令
+- 後台：<http://localhost:3000/admin>，用 `.dev.vars` 裡的帳密登入，第一次登入會自動建立總管理員。
 
 | 指令 | 用途 |
 | --- | --- |
-| `npm run dev` | 開發模式 |
-| `npm run build` / `npm start` | 正式建置／啟動 |
+| `npm run dev` | 本機開發（含模擬的 D1 與 KV） |
 | `npm run lint` / `npm run typecheck` | 程式碼檢查 |
-| `npm run db:start` | 啟動本機開發用 PostgreSQL |
-| `npm run db:migrate` | 套用資料庫遷移 |
-| `npm run db:seed` | 建立預設分類（可重複執行） |
-| `npm run db:studio` | 開啟 Prisma Studio 直接檢視資料 |
-| `npm run admin:create` | 建立／重設管理員 |
+| `npm run preview` | 用真正的 Workers 執行環境在本機預覽 |
+| `npm run cf:build` 後 `npm run cf:size` | 建置並顯示 Worker 大小（gzip 要小於 3 MiB） |
+| `npm run deploy` | 建置並部署到 Cloudflare |
 
----
+## 部署到 Cloudflare
 
-## 如何測試主要流程
-
-1. **發布活動**：登入後台 → 新增公告 → 填標題、上傳封面、選分類、填活動時間、寫內文、上傳簡章 PDF → 「儲存並預覽」→「立即發布」。發布後到前台首頁就會看到。
-2. **轉傳到 LINE**：公告管理 → 該公告的「操作」→「複製分享文案」（或「複製網址」）→ 貼到 LINE。前台每則公告頁面也有「一鍵複製轉傳文案」。
-3. **發布相似活動**：公告管理 →「操作」→「複製公告」→ 系統建立一則新的草稿（新的 ID 與新的網址，原公告不受影響）並直接進入編輯頁 → 修改日期與報名連結 → 發布。
-4. **訪客找免費競賽**：前台 → 點「競賽」→ 點「免費」→ 只會列出同時符合的活動。
-5. **預定發布**：編輯公告 → 發布設定 → 設定未來的時間 →「設定排程」。時間到後不需要任何操作，公告就會出現在前台。
-6. **權限**：登出後直接開 `/admin/…` 會被導回登入頁；草稿、已排程、已下架的公告從前台網址打開一律是 404。
-
-### 分享文案的變數
-
-在「自訂分享文案」中可以使用：`{標題}` `{摘要}` `{活動時間}` `{活動地點}` `{費用}` `{獎金}` `{活動對象}` `{報名截止}` `{報名連結}` `{短連結}`。
-沒有填自訂文案時，系統會依公告資料自動組成（有填「對外邀請文案」時會用它取代摘要）。
-
----
-
-## 排程發布如何運作
-
-預定發布不是只存一個時間而已，有三層機制確保真的會執行：
-
-1. **伺服器內建排程**（`src/instrumentation.ts`）：網站啟動後每 30 秒檢查一次，把到期的「已排程」公告改成「已發布」。適用於長時間執行的 Node 伺服器（`npm start`、Docker、Railway、Render、Zeabur、VPS）。
-2. **外部 Cron 端點**：`GET /api/cron/publish`，Header 帶 `Authorization: Bearer <CRON_SECRET>`。Serverless 平台沒有常駐程式，請用這個。
-3. **讀取時檢查**：前台每次讀取公告前也會先檢查一次，作為最後保險。
-
----
-
-## 部署到正式環境
-
-### 方案 A（建議）：可常駐的 Node 主機＋持久磁碟
-
-例如 Railway、Render、Zeabur、Fly.io 或自己的 VPS。優點是排程內建、檔案可以直接存在磁碟上，設定最少。
-
-1. 建立一個 PostgreSQL 資料庫，取得連線字串。
-2. 設定環境變數：`DATABASE_URL`、`SITE_URL=https://你的網域`、`STORAGE_DRIVER=local`、`UPLOAD_DIR=/data/uploads`（指向掛載的持久磁碟）。
-3. 另外設定 `ADMIN_ACCOUNT`、`ADMIN_PASSWORD`、`ADMIN_ROLE=OWNER`（第一次啟動時會自動建立這位總管理員；帳號已存在就不會再變更，之後可以把 `ADMIN_PASSWORD` 從平台上移除）。
-4. 建置與啟動指令：
+1. 登入 Cloudflare（會開啟瀏覽器授權）：
 
 ```bash
-npm ci && npm run build
+npx wrangler login
+```
+
+2. 建立資料庫與檔案儲存空間，並把指令輸出的 ID 填進 `wrangler.jsonc`（`database_id` 與 kv 的 `id`）：
+
+```bash
+npx wrangler d1 create cycu-board
 ```
 
 ```bash
-npm run start:prod
+npx wrangler kv namespace create FILES
 ```
 
-`start:prod` 會依序：套用資料庫遷移 → 補齊預設分類 → 第一次啟動時建立管理員 → 啟動網站。
-
-> 注意：如果平台的磁碟不是持久的（每次部署都會清空），上傳的圖片與附件會消失，請改用方案 B 的 S3 儲存。
-
-### 方案 B：Serverless（Vercel 等）
-
-需要另外準備三項外部服務：
-
-| 需求 | 建議服務 | 設定 |
-| --- | --- | --- |
-| PostgreSQL | Neon、Supabase | `DATABASE_URL` |
-| 物件儲存 | Cloudflare R2、AWS S3 | `STORAGE_DRIVER=s3` 與 `S3_ENDPOINT`、`S3_BUCKET`、`S3_ACCESS_KEY_ID`、`S3_SECRET_ACCESS_KEY`（Bucket 保持私有即可，檔案由網站代為輸出） |
-| 排程 | cron-job.org、GitHub Actions、平台內建 Cron | 每 1–5 分鐘呼叫 `https://你的網域/api/cron/publish`，Header：`Authorization: Bearer <CRON_SECRET>` |
-
-資料表與管理員可以在自己的電腦上對正式資料庫執行一次（把 `.env` 的 `DATABASE_URL` 暫時換成正式資料庫）：
+3. 建立資料表與預設分類：
 
 ```bash
-npm run setup
+npm run db:migrate:remote
 ```
 
-已知限制：Vercel 的函式請求大小上限約 4.5MB，超過的附件無法上傳。若常需要上傳較大的簡章，請用方案 A。
+4. 部署：
 
-### 需要另外配置的外部服務整理
+```bash
+npm run deploy
+```
 
-- **PostgreSQL**：正式環境一定要（本機開發已內建）
-- **S3 相容儲存**：只有在主機沒有持久磁碟時需要
-- **外部 Cron**：只有 Serverless 部署時需要
-- **Google Fonts**：字體由訪客的瀏覽器直接向 Google 載入，不需設定；載入失敗時自動改用系統字體
+5. 設定第一位總管理員的帳號密碼（以密鑰方式儲存，不會出現在程式碼裡）：
 
----
+```bash
+npx wrangler secret put ADMIN_ACCOUNT
+```
 
-## 安全性設計
+```bash
+npx wrangler secret put ADMIN_PASSWORD
+```
 
-- 密碼以 bcrypt（cost 12）雜湊儲存；Session 權杖只存 SHA-256 雜湊，Cookie 為 HttpOnly＋SameSite=Lax（https 時加 Secure）
-- 登入失敗限制：同一帳號 15 分鐘內錯 5 次、同一 IP 錯 20 次即暫時鎖定
-- 後台每一個頁面、每一個 Server Action、上傳 API 都在伺服器端驗證 Session，不是只隱藏按鈕
-- 後台頁面一律 `Cache-Control: no-store`，登出後按上一頁不會看到舊畫面
-- 上傳檔案檢查副檔名、MIME Type、大小（圖片 8MB／附件 20MB）與檔頭內容；不接受 SVG 與可執行檔；儲存檔名為隨機值
-- 富文字內容以白名單消毒，移除 script、事件屬性、`javascript:` 連結、iframe 與任意樣式
-- 所有資料庫查詢經由 Prisma 參數化；所有輸入以 Zod 在伺服器端驗證
+6. 打開部署完成後顯示的網址，到 `/admin/login` 用上面的帳密登入。第一次登入會自動建立總管理員；
+   之後這兩個密鑰就不再有作用，可以用 `npx wrangler secret delete ADMIN_PASSWORD` 移除。
+
+如果之後綁了自己的網域，請把 `wrangler.jsonc` 裡的 `SITE_URL` 改成 `https://你的網域` 再部署一次（分享連結與社群預覽會用到）。
+
+## 已知限制
+
+- **CPU 時間**：免費方案每次請求只有 10 毫秒 CPU。一般頁面在範圍內，但登入時的密碼雜湊較吃 CPU；
+  如果登入出現 Error 1102，請把 `src/lib/auth.ts` 的 `PBKDF2_ITERATIONS` 調低後重新部署，並請所有管理員重設密碼。
+- **預定發布的精確度**：Cron 每 5 分鐘執行一次；不過只要有人打開網站，到期的公告就會立刻發布。
+- **KV 的寫入次數**：每天 1,000 次，一般社團用量遠低於此。
+- **沒有存檔就離開編輯頁**時，已上傳的檔案會留在 KV 中（不影響使用）。
+- 一般管理員不能永久刪除公告（可以下架或封存）。
+
+## 專案結構
+
+```
+├─ wrangler.jsonc            Cloudflare 設定（D1、KV、Cron、環境變數）
+├─ custom-worker.ts          Worker 進入點（網站＋排程發布）
+├─ open-next.config.ts       OpenNext 設定
+├─ migrations/               D1 資料表與預設分類
+├─ cloudflare-env.d.ts       由 `wrangler types` 產生的型別
+└─ src/
+   ├─ middleware.ts          未登入不得進入 /admin
+   ├─ app/                   前台 (site)、後台 admin、上傳 API、檔案輸出
+   ├─ components/            前台與後台元件
+   └─ lib/
+      ├─ db.ts               D1 存取
+      ├─ announcements.ts    公告查詢（前台與後台）
+      ├─ auth.ts             登入、Session、密碼雜湊、登入失敗鎖定
+      ├─ storage.ts          KV 檔案儲存與上傳驗證
+      └─ share.ts / format.ts / validation.ts / youtube.ts …
+```
+
+## 安全性
+
+- 密碼以 PBKDF2-SHA256 加上每個帳號獨立的隨機 salt 儲存；Session 權杖只存 SHA-256 雜湊，Cookie 為 HttpOnly＋SameSite=Lax（https 時加 Secure）
+- 同一帳號 15 分鐘內錯 5 次、同一 IP 錯 20 次即暫時鎖定
+- 後台每個頁面、每個操作、上傳 API 都在伺服器端驗證登入與權限
+- 上傳檔案檢查副檔名、MIME Type、大小與檔頭；不接受 SVG 與可執行檔
+- 所有 SQL 都使用參數綁定；所有輸入以 Zod 在伺服器端驗證
 - 未發布公告的頁面與附件，訪客無法透過修改網址取得
-
----
-
-## 重要假設與設計決定
-
-- **公告網址**採用 `/a/<7 碼隨機代稱>`，建立時產生，修改標題不會改變；管理者可在編輯頁手動改成好記的代稱（發布後不建議再改）。
-- **時間**一律以台灣時間（UTC+8）輸入與顯示。
-- **篩選邏輯**：不同分類之間是「且」（來源 × 類型 × 費用），同一分類內多選是「或」。
-- **費用**是獨立欄位（免費／付費／保證金／依活動內容而定），不是標籤。
-- **精選活動**首頁最多顯示 3 則；**置頂**公告在「最新發布」排序時排在最前面。
-- **重新發布**已下架的公告時會保留原本的發布時間。
-- **刪除分類**不會刪除公告，只會把該標籤從公告上移除。
-- **複製公告**時圖片與附件是共用同一份實體檔案；只有在沒有任何公告引用時才會真的刪除檔案。
-- 上傳後沒有儲存就離開編輯頁的檔案會留在儲存空間中（不影響使用）。
-- 活動資訊來源的標誌（青年局、創發中心、台北校友會、獎金獵人、中原大學等）僅用於「關於」頁；如需調整請修改 `src/app/(site)/about/page.tsx`，或在系統設定中隱藏整個區塊。
-- **Instagram 私訊分享**：Instagram 沒有提供可帶入內容的私訊分享網址，因此按鈕的做法是先複製轉傳文案，再開啟 Instagram 私訊頁讓使用者貼上。
-- **YouTube 內嵌**使用 `youtube-nocookie.com` 隱私加強模式，只接受 YouTube 網址。
-- **一般管理員不能永久刪除公告**（可以下架或封存），避免誤刪；這是預設的權限設計。
-- 示範公告（標題有【示範公告】）只是展示版面用，正式使用前請在後台刪除。
