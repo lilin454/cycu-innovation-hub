@@ -132,6 +132,8 @@ export function SettingsForm({ initial }: { initial: Values }) {
               {toggle("showStats", "首頁｜數字統計條", "公開公告、即將舉辦、免費活動的數量。")}
               {toggle("showFeatured", "首頁｜精選活動", "被設為精選的公告。")}
               {toggle("showCategoryIndex", "首頁｜依分類找活動", "首頁下方的分類入口。")}
+              {toggle("showCalendar", "「行事曆」頁面", "用月曆顯示各活動時間。隱藏後導覽列的連結也會移除。")}
+              {toggle("showRecords", "「活動紀錄」頁面", "獲獎、參訪與活動成果。隱藏後導覽列的連結也會移除。")}
               {toggle("showAbout", "「關於創創社」頁面", "隱藏後導覽列與頁尾的連結也會一併移除。")}
               {toggle("showSources", "關於頁｜活動資訊來源", "合作單位與資訊來源的標誌。")}
             </div>

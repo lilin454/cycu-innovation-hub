@@ -29,6 +29,8 @@ export const SETTING_DEFAULTS = {
   showCategoryIndex: "1",
   showSources: "1",
   showAbout: "1",
+  showCalendar: "1",
+  showRecords: "1",
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;

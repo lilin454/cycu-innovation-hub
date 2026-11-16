@@ -47,6 +47,9 @@ export type Announcement = {
   contactOther: string | null;
   invitationText: string | null;
   customShareText: string | null;
+  surveyEnabled: boolean;
+  surveyQuestion: string | null;
+  surveyOptions: string | null;
   status: StatusKey;
   isFeatured: boolean;
   isPinned: boolean;
@@ -61,7 +64,7 @@ export type AnnouncementDetail = AnnouncementCard & { attachments: Attachment[];
 
 export type AnnouncementRow = Omit<
   Announcement,
-  "startAt" | "endAt" | "registrationDeadline" | "scheduledAt" | "publishedAt" | "createdAt" | "updatedAt" | "isFeatured" | "isPinned"
+  "startAt" | "endAt" | "registrationDeadline" | "scheduledAt" | "publishedAt" | "createdAt" | "updatedAt" | "isFeatured" | "isPinned" | "surveyEnabled"
 > & {
   startAt: string | null;
   endAt: string | null;
@@ -72,6 +75,7 @@ export type AnnouncementRow = Omit<
   updatedAt: string;
   isFeatured: number;
   isPinned: number;
+  surveyEnabled: number;
 };
 
 const date = (v: string | null) => (v ? new Date(v) : null);
@@ -88,5 +92,6 @@ export function mapAnnouncement(r: AnnouncementRow): Announcement {
     updatedAt: new Date(r.updatedAt),
     isFeatured: r.isFeatured === 1,
     isPinned: r.isPinned === 1,
+    surveyEnabled: r.surveyEnabled === 1,
   };
 }

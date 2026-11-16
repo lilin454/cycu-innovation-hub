@@ -8,6 +8,7 @@ type Item = { href: string; label: string; short: string; ownerOnly?: boolean; e
 const NAV: Item[] = [
   { href: "/admin", label: "總覽", short: "總覽" },
   { href: "/admin/announcements", label: "公告管理", short: "公告" },
+  { href: "/admin/records", label: "活動紀錄", short: "紀錄" },
   { href: "/admin/categories", label: "分類管理", short: "分類", ownerOnly: true },
   { href: "/admin/users", label: "管理員帳號", short: "帳號", ownerOnly: true },
   { href: "/admin/settings", label: "系統設定", short: "設定", editorLabel: "我的帳號" },

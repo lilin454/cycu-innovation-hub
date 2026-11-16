@@ -17,6 +17,7 @@ export function RowActions({
   url,
   shareText,
   canDelete,
+  hasSurvey,
 }: {
   id: string;
   title: string;
@@ -26,6 +27,7 @@ export function RowActions({
   url: string;
   shareText: string;
   canDelete: boolean;
+  hasSurvey: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -108,6 +110,7 @@ export function RowActions({
       {open && (
         <div role="menu" className={`absolute left-0 z-20 w-44 xl:left-auto xl:right-0 ${dropUp ? "bottom-full mb-1" : "top-full mt-1"} border-2 border-ink bg-white py-1 shadow-[4px_4px_0_var(--color-ink)]`}>
           <Link role="menuitem" className={item} href={`/admin/announcements/${id}/preview`} target="_blank">預覽</Link>
+          {hasSurvey && <Link role="menuitem" className={item} href={`/admin/announcements/${id}/responses`}>問卷回覆</Link>}
           <button role="menuitem" type="button" className={item} onClick={duplicate}>複製公告</button>
           <button role="menuitem" type="button" className={item} onClick={() => { setOpen(false); void copyWithToast(url, "已複製活動網址"); }}>複製網址</button>
           <button role="menuitem" type="button" className={item} onClick={() => { setOpen(false); void copyWithToast(shareText, "已複製分享文案"); }}>複製分享文案</button>

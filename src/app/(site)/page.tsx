@@ -9,6 +9,8 @@ import {
   parseFilters,
 } from "@/lib/announcements";
 import { dateParts, formatDate, formatRange } from "@/lib/format";
+import { listPublicMilestones } from "@/lib/milestones";
+import { MILESTONE_KIND_LABEL, MILESTONE_SUBJECT_LABEL } from "@/lib/milestone-types";
 import { getSettings } from "@/lib/settings";
 import { AnnouncementRow, typeLabel } from "@/components/site/AnnouncementRow";
 import { Cover } from "@/components/site/Cover";
@@ -20,13 +22,14 @@ type Props = { searchParams: Promise<Record<string, string | string[] | undefine
 export default async function HomePage({ searchParams }: Props) {
   const f = parseFilters(await searchParams);
   const filtering = hasActiveFilters(f) || f.page > 1 || f.sort !== "latest";
-  const [s, list, categories, featured, nextUp, stats] = await Promise.all([
+  const [s, list, categories, featured, nextUp, stats, records] = await Promise.all([
     getSettings(),
     listPublic(f),
     getCategoriesWithCounts(),
     filtering ? Promise.resolve([]) : getFeatured(),
     getNextUp(),
     getPublicStats(),
+    filtering ? Promise.resolve([]) : listPublicMilestones({ kind: null, subject: null }, 3),
   ]);
   const next = dateParts(nextUp?.startAt);
   const on = (k: "showNextUp" | "showStats" | "showFeatured" | "showCategoryIndex") => s[k] !== "0";
@@ -52,6 +55,7 @@ export default async function HomePage({ searchParams }: Props) {
             {s.heroIntro && <p className="mt-6 max-w-xl text-[1.05rem] leading-relaxed text-muted md:text-lg">{s.heroIntro}</p>}
             <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-4">
               <Link href="#latest" className="btn btn-sun">看最新公告 ↓</Link>
+              {s.showCalendar !== "0" && <Link href="/calendar" className="link-arrow">看行事曆 <span aria-hidden>→</span></Link>}
               <Link href="/announcements?fee=free" className="link-arrow">只看免費活動 <span aria-hidden>→</span></Link>
             </div>
           </div>
@@ -168,6 +172,31 @@ export default async function HomePage({ searchParams }: Props) {
       </section>
 
       {/* ── 活動分類入口 ───────────────────────────────── */}
+      {/* ── 活動紀錄 ───────────────────────────────────── */}
+      {!filtering && s.showRecords !== "0" && records.length > 0 && (
+        <section aria-labelledby="records-title" className="wrap pt-14 md:pt-20">
+          <div className="flex items-end justify-between gap-4 border-b-2 border-ink pb-3">
+            <h2 id="records-title" className="text-3xl font-black md:text-4xl">活動紀錄</h2>
+            <Link href="/records" className="link-arrow text-sm">全部紀錄 <span aria-hidden>→</span></Link>
+          </div>
+          <ol className="grid md:grid-cols-3 md:divide-x-2 md:divide-ink">
+            {records.map((r) => (
+              <li key={r.id} className="border-b-2 border-ink py-5 md:px-6 md:first:pl-0 md:last:pr-0">
+                <p className="font-display text-sm font-black text-flame-dark">{r.occurredOn.replace(/-/g, "/")}</p>
+                <p className="mt-2 flex flex-wrap gap-1.5">
+                  <span className={`tag ${r.kind === "AWARD" ? "tag-free" : "tag-type"}`}>{MILESTONE_KIND_LABEL[r.kind]}</span>
+                  <span className="tag tag-source">{MILESTONE_SUBJECT_LABEL[r.subject]}</span>
+                </p>
+                <h3 className="mt-2 text-lg font-black leading-snug">
+                  <Link href="/records" className="hover:text-flame-dark hover:underline">{r.title}</Link>
+                </h3>
+                {r.people && <p className="mt-1 text-sm text-muted">{r.people}</p>}
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+
       {!filtering && on("showCategoryIndex") && <CategoryIndex categories={categories} no={lead ? "03" : "02"} />}
     </>
   );

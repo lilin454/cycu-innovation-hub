@@ -8,6 +8,8 @@ import { Logo } from "./Logo";
 const ALL_NAV = [
   { href: "/", label: "首頁" },
   { href: "/announcements", label: "最新公告" },
+  { href: "/calendar", label: "行事曆" },
+  { href: "/records", label: "活動紀錄" },
   { href: "/categories", label: "活動分類" },
   { href: "/about", label: "關於創創社" },
 ];
@@ -17,15 +19,20 @@ export function SiteHeader({
   siteNameEn,
   logoUrl,
   showAbout,
+  showCalendar,
+  showRecords,
 }: {
   siteName: string;
   siteNameEn: string;
   logoUrl: string;
   showAbout: boolean;
+  showCalendar: boolean;
+  showRecords: boolean;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const NAV = showAbout ? ALL_NAV : ALL_NAV.filter((n) => n.href !== "/about");
+  const hidden = [!showAbout && "/about", !showCalendar && "/calendar", !showRecords && "/records"];
+  const NAV = ALL_NAV.filter((n) => !hidden.includes(n.href));
 
   useEffect(() => setOpen(false), [pathname]);
   useEffect(() => {
@@ -48,7 +55,7 @@ export function SiteHeader({
           </span>
         </Link>
 
-        <nav aria-label="主要導覽" className="hidden items-center gap-7 lg:flex">
+        <nav aria-label="主要導覽" className="hidden items-center gap-5 xl:flex">
           {NAV.map((n) => (
             <Link
               key={n.href}
@@ -68,7 +75,7 @@ export function SiteHeader({
 
         <button
           type="button"
-          className="flex h-11 w-11 flex-none items-center justify-center border-2 border-ink lg:hidden"
+          className="flex h-11 w-11 flex-none items-center justify-center border-2 border-ink xl:hidden"
           aria-expanded={open}
           aria-controls="mobile-nav"
           aria-label={open ? "關閉選單" : "開啟選單"}
@@ -86,7 +93,7 @@ export function SiteHeader({
         <nav
           id="mobile-nav"
           aria-label="行動版導覽"
-          className="fixed inset-x-0 bottom-0 top-16 z-40 overflow-y-auto bg-navy text-paper md:top-[4.5rem] lg:hidden"
+          className="fixed inset-x-0 bottom-0 top-16 z-40 overflow-y-auto bg-navy text-paper md:top-[4.5rem] xl:hidden"
         >
           <ul className="wrap py-4">
             {NAV.map((n, i) => (

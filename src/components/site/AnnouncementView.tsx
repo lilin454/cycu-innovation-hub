@@ -1,10 +1,12 @@
 import Link from "next/link";
 import type { AnnouncementDetail } from "@/lib/announcements";
 import { formatBytes, formatDate, formatDateTime, formatFee, formatRange } from "@/lib/format";
+import { DEFAULT_SURVEY_QUESTION, parseSurveyOptions } from "@/lib/survey";
 import { youtubeEmbedUrl, youtubeId } from "@/lib/youtube";
 import { Content } from "./Content";
 import { Cover } from "./Cover";
 import { ShareBar } from "./ShareBar";
+import { SurveyForm } from "./SurveyForm";
 import { TagList } from "./Tags";
 
 function Info({ label, children }: { label: string; children: React.ReactNode }) {
@@ -83,6 +85,15 @@ export function AnnouncementView({
             <section aria-label="活動內容" className={a.coverImage ? "mt-10" : "mt-10 lg:mt-0"}>
               <Content text={a.content} />
             </section>
+          )}
+
+          {a.surveyEnabled && (
+            <SurveyForm
+              announcementId={a.id}
+              question={a.surveyQuestion?.trim() || DEFAULT_SURVEY_QUESTION}
+              options={parseSurveyOptions(a.surveyOptions)}
+              preview={preview}
+            />
           )}
 
           {videoId && (

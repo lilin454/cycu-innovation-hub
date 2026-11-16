@@ -12,6 +12,7 @@ import { SETTING_DEFAULTS, type SettingKey } from "@/lib/settings";
 import {
   announcementSchema,
   categorySchema,
+  milestoneSchema,
   firstZodError,
   SAVE_INTENTS,
   settingsSchema,
@@ -42,15 +43,16 @@ const randomHex = (bytes: number) =>
 
 /** 刪除已經沒有任何地方引用的實體檔案（一次查詢檢查全部候選檔案） */
 async function cleanupFiles(urls: (string | null | undefined)[]) {
-  const unique = [...new Set(urls.filter((u): u is string => Boolean(u && keyFromUrl(u))))].slice(0, 24);
+  const unique = [...new Set(urls.filter((u): u is string => Boolean(u && keyFromUrl(u))))].slice(0, 20);
   if (!unique.length) return;
   const ph = placeholders(unique.length);
   const used = await all<{ u: string }>(
     `SELECT "coverImage" AS u FROM "Announcement" WHERE "coverImage" IN (${ph})
      UNION SELECT "fileUrl" FROM "Attachment" WHERE "fileUrl" IN (${ph})
      UNION SELECT "url" FROM "AnnouncementImage" WHERE "url" IN (${ph})
-     UNION SELECT "value" FROM "SiteSetting" WHERE "value" IN (${ph})`,
-    ...unique, ...unique, ...unique, ...unique,
+     UNION SELECT "value" FROM "SiteSetting" WHERE "value" IN (${ph})
+     UNION SELECT "coverImage" FROM "Milestone" WHERE "coverImage" IN (${ph})`,
+    ...unique, ...unique, ...unique, ...unique, ...unique,
   );
   const usedSet = new Set(used.map((r) => r.u));
   await Promise.all(unique.filter((u) => !usedSet.has(u)).map((u) => deleteObject(keyFromUrl(u)!)));
@@ -94,7 +96,7 @@ const ANNOUNCEMENT_COLUMNS = [
   "slug", "title", "subtitle", "summary", "content", "coverImage", "feeType", "feeAmount", "feeDescription", "prize",
   "startAt", "endAt", "registrationDeadline", "location", "organizer", "coOrganizer", "targetAudience",
   "registrationUrl", "registrationMethod", "youtubeUrl", "contactName", "contactEmail", "contactPhone", "contactLine",
-  "contactOther", "invitationText", "customShareText", "status", "isFeatured", "isPinned", "scheduledAt", "publishedAt",
+  "contactOther", "invitationText", "customShareText", "surveyEnabled", "surveyQuestion", "surveyOptions", "status", "isFeatured", "isPinned", "scheduledAt", "publishedAt",
 ] as const;
 type Column = (typeof ANNOUNCEMENT_COLUMNS)[number];
 type ColumnValues = Record<Column, string | number | null>;
@@ -239,6 +241,9 @@ export async function saveAnnouncement(id: string | null, raw: unknown, intent: 
     contactOther: nullable(d.contactOther),
     invitationText: nullable(d.invitationText),
     customShareText: nullable(d.customShareText),
+    surveyEnabled: d.surveyEnabled ? 1 : 0,
+    surveyQuestion: nullable(d.surveyQuestion),
+    surveyOptions: nullable(d.surveyOptions),
     status,
     isFeatured: d.isFeatured ? 1 : 0,
     isPinned: d.isPinned ? 1 : 0,
@@ -309,6 +314,9 @@ export async function duplicateAnnouncement(id: string) {
     contactOther: src.contactOther,
     invitationText: src.invitationText,
     customShareText: src.customShareText,
+    surveyEnabled: src.surveyEnabled ? 1 : 0,
+    surveyQuestion: src.surveyQuestion,
+    surveyOptions: src.surveyOptions,
     // 複製出來的一律是草稿：不沿用發布狀態、排程、置頂與精選
     status: "DRAFT",
     isFeatured: 0,
@@ -507,5 +515,59 @@ export async function deleteUser(id: string) {
   if (target.role === "OWNER" && (await ownerCount()) <= 1) return fail("至少要保留一位總管理員。");
   await run(`DELETE FROM "User" WHERE "id" = ?`, target.id);
   revalidatePath("/admin/users");
+  return { ok: true as const };
+}
+
+// ───────────────────────── 問卷回覆 ─────────────────────────
+
+export async function deleteSurveyResponse(id: string) {
+  const { denied } = await guard();
+  if (denied) return denied;
+  const changed = await run(`DELETE FROM "SurveyResponse" WHERE "id" = ?`, String(id));
+  if (!changed) return fail("找不到這筆回覆，可能已被刪除。");
+  return { ok: true as const };
+}
+
+// ───────────────────────── 活動紀錄 ─────────────────────────
+
+export async function saveMilestone(id: string | null, raw: unknown) {
+  const { denied } = await guard();
+  if (denied) return denied;
+  const parsed = milestoneSchema.safeParse(raw);
+  if (!parsed.success) return fail(firstZodError(parsed.error));
+  const d = parsed.data;
+  const nullable = (v: string) => (v === "" ? null : v);
+  const status = d.published ? "PUBLISHED" : "DRAFT";
+  const now = nowIso();
+  if (id) {
+    const old = await first<{ coverImage: string | null }>(`SELECT "coverImage" FROM "Milestone" WHERE "id" = ?`, String(id));
+    if (!old) return fail("找不到這筆紀錄，可能已被刪除。");
+    await run(
+      `UPDATE "Milestone" SET "title" = ?, "kind" = ?, "subject" = ?, "people" = ?, "occurredOn" = ?, "location" = ?, "content" = ?,
+         "coverImage" = ?, "linkUrl" = ?, "status" = ?, "updatedAt" = ? WHERE "id" = ?`,
+      d.title, d.kind, d.subject, nullable(d.people), d.occurredOn, nullable(d.location), d.content,
+      nullable(d.coverImage), nullable(d.linkUrl), status, now, String(id),
+    );
+    if (old.coverImage && old.coverImage !== d.coverImage) await cleanupFiles([old.coverImage]);
+  } else {
+    await run(
+      `INSERT INTO "Milestone" ("id", "title", "kind", "subject", "people", "occurredOn", "location", "content", "coverImage", "linkUrl", "status", "createdAt", "updatedAt")
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      newId(), d.title, d.kind, d.subject, nullable(d.people), d.occurredOn, nullable(d.location), d.content,
+      nullable(d.coverImage), nullable(d.linkUrl), status, now, now,
+    );
+  }
+  refreshPublic();
+  return { ok: true as const };
+}
+
+export async function deleteMilestone(id: string) {
+  const { denied } = await guard(true);
+  if (denied) return denied;
+  const old = await first<{ coverImage: string | null }>(`SELECT "coverImage" FROM "Milestone" WHERE "id" = ?`, String(id));
+  if (!old) return fail("找不到這筆紀錄，可能已被刪除。");
+  await run(`DELETE FROM "Milestone" WHERE "id" = ?`, String(id));
+  await cleanupFiles([old.coverImage]);
+  refreshPublic();
   return { ok: true as const };
 }

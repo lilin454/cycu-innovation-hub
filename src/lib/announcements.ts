@@ -215,6 +215,21 @@ export async function getRelated(a: AnnouncementDetail, take = 3): Promise<Annou
   return withCategories(rows.map(mapAnnouncement));
 }
 
+/** 行事曆：取得某個月份（台灣時間）內有舉辦的已發布活動，含跨月的活動 */
+export async function getCalendarMonth(year: number, month: number): Promise<Announcement[]> {
+  await publishDue();
+  // 台灣時間當月 1 日 00:00 = UTC 前一天 16:00
+  const start = new Date(Date.UTC(year, month - 1, 1) - 8 * 3600_000).toISOString();
+  const end = new Date(Date.UTC(year, month, 1) - 8 * 3600_000).toISOString();
+  const rows = await all<AnnouncementRow>(
+    `SELECT * FROM "Announcement" WHERE "status" = 'PUBLISHED' AND "startAt" IS NOT NULL
+       AND "startAt" < ? AND COALESCE("endAt", "startAt") >= ? ORDER BY "startAt" ASC LIMIT 300`,
+    end,
+    start,
+  );
+  return rows.map(mapAnnouncement);
+}
+
 /** 分類與其「已發布」公告數量 */
 export async function getCategoriesWithCounts() {
   return all<Category & { count: number }>(

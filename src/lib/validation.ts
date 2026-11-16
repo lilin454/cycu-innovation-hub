@@ -53,6 +53,9 @@ export const announcementSchema = z.object({
   invitationText: text(1000),
   customShareText: text(2000),
   prize: text(60),
+  surveyEnabled: z.boolean(),
+  surveyQuestion: text(120),
+  surveyOptions: text(400),
   youtubeUrl: z
     .string()
     .trim()
@@ -115,6 +118,8 @@ export const settingsSchema = z.object({
   showCategoryIndex: flag,
   showSources: flag,
   showAbout: flag,
+  showCalendar: flag,
+  showRecords: flag,
 });
 
 export const userCreateSchema = z.object({
@@ -126,6 +131,19 @@ export const userCreateSchema = z.object({
   displayName: text(40).min(1, "請填寫顯示名稱"),
   password: z.string().min(10, "密碼至少需要 10 個字元").max(200, "密碼過長"),
   role: z.enum(["OWNER", "EDITOR"]),
+});
+
+export const milestoneSchema = z.object({
+  title: text(120).min(1, "請填寫標題"),
+  kind: z.enum(["AWARD", "VISIT", "EVENT", "OTHER"]),
+  subject: z.enum(["CLUB", "OFFICER", "MEMBER"]),
+  people: text(200),
+  occurredOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "請選擇日期"),
+  location: text(200),
+  content: z.string().max(5000, "說明過長（上限 5000 字）"),
+  coverImage: z.union([fileUrl, z.literal("")]),
+  linkUrl: optionalUrl,
+  published: z.boolean(),
 });
 
 export function firstZodError(err: z.ZodError): string {

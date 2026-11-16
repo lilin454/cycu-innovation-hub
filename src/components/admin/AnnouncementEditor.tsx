@@ -29,8 +29,9 @@ const SECTIONS = [
   ["content", "D", "完整公告內文"],
   ["files", "E", "圖片與附件"],
   ["contact", "F", "聯絡與邀請"],
-  ["share", "G", "分享設定"],
-  ["publish", "H", "發布設定"],
+  ["survey", "G", "活動問卷"],
+  ["share", "H", "分享設定"],
+  ["publish", "I", "發布設定"],
 ] as const;
 
 function Section({ id, code, title, hint, children }: { id: string; code: string; title: string; hint?: string; children: React.ReactNode }) {
@@ -609,8 +610,36 @@ export function AnnouncementEditor({
             </Field>
           </Section>
 
-          {/* G 分享設定 */}
-          <Section id="share" code="G" title="分享設定">
+          {/* G 活動問卷 */}
+          <Section id="survey" code="G" title="活動問卷（選填）" hint="例如詢問是否出席">
+            <label className="flex cursor-pointer items-start gap-3 border-2 border-line bg-white p-3 has-[:checked]:border-ink has-[:checked]:bg-sun-soft">
+              <input type="checkbox" className="mt-1 h-5 w-5 accent-[#0b2a4a]" checked={form.surveyEnabled} onChange={(e) => set("surveyEnabled", e.target.checked)} />
+              <span>
+                <span className="block font-bold">在活動頁面放一個簡易問卷</span>
+                <span className="text-xs text-muted">訪客直接在網頁上填姓名、選一個答案就完成，不用另外開 Google 表單。回覆只有管理員看得到。</span>
+              </span>
+            </label>
+            {form.surveyEnabled && (
+              <>
+                <Field label="問題" hint="留空會使用「你會出席這個活動嗎？」">
+                  <input className="input" maxLength={120} placeholder="你會出席這個活動嗎？" {...text("surveyQuestion")} />
+                </Field>
+                <Field label="選項（一行一個，2 到 6 個）" hint="留空會使用：會出席／不會出席／還不確定">
+                  <textarea className="input" rows={4} maxLength={400} placeholder={"會出席\n不會出席\n還不確定"} {...text("surveyOptions")} />
+                </Field>
+              </>
+            )}
+            {id ? (
+              <p className="text-sm">
+                <Link href={`/admin/announcements/${id}/responses`} className="font-bold underline underline-offset-4">查看問卷回覆 →</Link>
+              </p>
+            ) : (
+              form.surveyEnabled && <p className="field-hint !mt-0">公告發布後，問卷會出現在活動頁面；儲存後這裡會出現「查看問卷回覆」。</p>
+            )}
+          </Section>
+
+          {/* H 分享設定 */}
+          <Section id="share" code="H" title="分享設定">
             <div>
               <span className="field-label">專屬分享網址</span>
               <div className="flex items-stretch border-2 border-ink bg-white">
@@ -657,7 +686,7 @@ export function AnnouncementEditor({
           </Section>
 
           {/* H 發布設定 */}
-          <Section id="publish" code="H" title="發布設定">
+          <Section id="publish" code="I" title="發布設定">
             <div className="flex flex-wrap items-center gap-3">
               <span className="text-sm font-bold">目前狀態</span>
               <StatusBadge status={status} />

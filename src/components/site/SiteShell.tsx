@@ -17,7 +17,7 @@ export async function SiteShell({ children }: { children: React.ReactNode }) {
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:bg-sun focus:px-3 focus:py-2 focus:font-bold">
         跳到主要內容
       </a>
-      <SiteHeader siteName={s.siteName} siteNameEn={s.siteNameEn} logoUrl={s.logoUrl} showAbout={s.showAbout !== "0"} />
+      <SiteHeader siteName={s.siteName} siteNameEn={s.siteNameEn} logoUrl={s.logoUrl} showAbout={s.showAbout !== "0"} showCalendar={s.showCalendar !== "0"} showRecords={s.showRecords !== "0"} />
       <main id="main" className="flex-1">
         {children}
       </main>
@@ -40,6 +40,8 @@ export async function SiteShell({ children }: { children: React.ReactNode }) {
             <ul className="mt-4 space-y-2.5 font-medium">
               <li><Link className="hover:text-sun" href="/announcements">最新公告</Link></li>
               <li><Link className="hover:text-sun" href="/categories">活動分類</Link></li>
+              {s.showCalendar !== "0" && <li><Link className="hover:text-sun" href="/calendar">活動行事曆</Link></li>}
+              {s.showRecords !== "0" && <li><Link className="hover:text-sun" href="/records">活動紀錄</Link></li>}
               <li><Link className="hover:text-sun" href="/announcements?fee=free">免費活動</Link></li>
               {s.showAbout !== "0" && <li><Link className="hover:text-sun" href="/about">關於創創社</Link></li>}
             </ul>

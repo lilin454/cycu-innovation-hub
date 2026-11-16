@@ -146,6 +146,7 @@ export default async function AdminAnnouncementsPage({ searchParams }: { searchP
                     url={url}
                     shareText={buildShareText(a, base)}
                     canDelete={me.role === "OWNER"}
+                    hasSurvey={a.surveyEnabled}
                   />
                 </li>
               );
