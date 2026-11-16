@@ -4,7 +4,8 @@ import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 const nextConfig = {
   poweredByHeader: false,
   experimental: {
-    serverActions: { bodySizeLimit: "2mb" },
+    // allowedOrigins：網站經由 Vercel 網域轉進來時，表單送出的來源網域會和 Worker 的網域不同
+    serverActions: { bodySizeLimit: "2mb", allowedOrigins: ["cycuinnovation.vercel.app"] },
   },
   async headers() {
     const security = [

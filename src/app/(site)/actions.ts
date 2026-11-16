@@ -1,7 +1,7 @@
 "use server";
 
 import { headers } from "next/headers";
-import { first, newId, nowIso, run } from "@/lib/db";
+import { clientIpFrom, first, newId, nowIso, run } from "@/lib/db";
 import { parseSurveyOptions } from "@/lib/survey";
 
 // 前台訪客可以呼叫的操作（不需要登入）。所有輸入都在伺服器端驗證。
@@ -37,7 +37,7 @@ export async function submitSurvey(
     if (!parseSurveyOptions(a.surveyOptions).includes(answer)) return fail("請選擇一個選項。");
 
     const h = await headers();
-    const ip = (h.get("cf-connecting-ip") || h.get("x-forwarded-for")?.split(",")[0] || "unknown").trim();
+    const ip = clientIpFrom(h);
     // 只儲存雜湊後的值，用來防止灌票，不保存原始 IP
     const ipHash = await sha256(`${a.id}:${ip}`);
     const now = nowIso();

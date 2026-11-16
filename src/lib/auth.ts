@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { all, batch, first, getVar, newId, nowIso, run, stmt } from "./db";
+import { all, batch, clientIpFrom, first, getVar, newId, nowIso, run, stmt } from "./db";
 import { SESSION_COOKIE } from "./constants";
 import type { Role } from "./types";
 
@@ -55,7 +55,7 @@ function secureCookie(): boolean {
 
 async function clientIp(): Promise<string> {
   const h = await headers();
-  return (h.get("cf-connecting-ip") || h.get("x-forwarded-for")?.split(",")[0] || h.get("x-real-ip") || "unknown").trim();
+  return clientIpFrom(h);
 }
 
 type UserRow = { id: string; account: string; passwordHash: string; displayName: string; role: Role };

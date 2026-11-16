@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
+import { publicHost } from "@/lib/db";
 import { saveUpload, UploadError } from "@/lib/storage";
 
 export async function POST(req: Request) {
@@ -9,7 +10,9 @@ export async function POST(req: Request) {
   // 防 CSRF：只接受同源請求
   const origin = req.headers.get("origin");
   const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
-  if (origin && host && new URL(origin).host !== host) {
+  // 同源，或來自 SITE_URL 設定的對外網域（經由 Vercel 轉進來時）
+  const originHost = origin ? new URL(origin).host : "";
+  if (origin && host && originHost !== host && originHost !== publicHost()) {
     return NextResponse.json({ error: "不允許的請求來源。" }, { status: 403 });
   }
 

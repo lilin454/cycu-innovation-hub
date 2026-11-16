@@ -10,6 +10,13 @@ export function middleware(req: NextRequest) {
     const url = req.nextUrl.clone();
     url.pathname = "/admin/login";
     url.search = "";
+    // 網站可能是經由別的網域（例如 Vercel）轉進來的，導向時要回到訪客實際使用的網域
+    const forwardedHost = req.headers.get("x-forwarded-host");
+    if (forwardedHost && /^[a-z0-9.-]+(:\d+)?$/i.test(forwardedHost)) {
+      url.host = forwardedHost;
+      url.protocol = req.headers.get("x-forwarded-proto") === "http" ? "http:" : "https:";
+      if (!forwardedHost.includes(":")) url.port = "";
+    }
     return NextResponse.redirect(url);
   }
   return NextResponse.next();

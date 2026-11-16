@@ -64,3 +64,23 @@ export function getVar(name: string): string {
   const value = typeof fromBinding === "string" ? fromBinding : process.env[name];
   return (value ?? "").trim();
 }
+
+/** SITE_URL 設定的對外網域（例如 cycuinnovation.vercel.app）；沒設定時回傳空字串 */
+export function publicHost(): string {
+  try {
+    return new URL(getVar("SITE_URL")).host;
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * 訪客的 IP。直接連到 Worker 時用 Cloudflare 提供的 cf-connecting-ip；
+ * 經由對外網域（Vercel）轉進來時，cf-connecting-ip 會是 Vercel 的機器，要改看 Vercel 帶來的標頭。
+ */
+export function clientIpFrom(h: { get(name: string): string | null }): string {
+  const viaProxy = Boolean(publicHost()) && h.get("x-forwarded-host") === publicHost();
+  const forwarded = h.get("x-vercel-forwarded-for") || h.get("x-real-ip") || h.get("x-forwarded-for");
+  const ip = (viaProxy && forwarded ? forwarded : h.get("cf-connecting-ip") || forwarded || "unknown").split(",")[0].trim();
+  return ip.slice(0, 64) || "unknown";
+}
