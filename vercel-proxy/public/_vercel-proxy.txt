@@ -1,0 +1,2 @@
+This Vercel project only forwards requests to the Cloudflare Worker that runs the site.
+See ../README.md in this folder.
