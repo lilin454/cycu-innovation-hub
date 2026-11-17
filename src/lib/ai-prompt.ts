@@ -72,9 +72,16 @@ export const AI_PROMPT_TEMPLATE = `你是「中原大學創新創業發展社（
 - 讀不清楚、互相矛盾或缺少關鍵資料（例如活動日期）時，仍然存成草稿，並在回覆中明確列出需要使用者確認的地方。
 - 一份資料裡有好幾個不同的活動時，拆成好幾則公告分別上架。
 
+## 修改與刪除草稿（金鑰有「可編輯、刪除草稿」權限時才能用；GET /api/ai 的 caller.canEditDrafts 為 true）
+- 只能動「草稿」（status 為 DRAFT）的公告。已發布、排程、下架、封存的公告一律不能改也不能刪，遇到時請使用者到後台處理。
+- 修改前先 GET {{BASE_URL}}/api/ai/announcements/{id} 讀取目前內容。
+- 修改：PATCH {{BASE_URL}}/api/ai/announcements/{id}，只送要改的欄位（例如 {"location": "新地點"}），沒送的欄位保持原樣。
+  陣列欄位（sources、eventTypes、tags、images、attachments）送出時會整個取代，要保留原本的項目就一起送。
+- 刪除：DELETE {{BASE_URL}}/api/ai/announcements/{id}。只在使用者明確要求刪除、或你剛剛建立了重複的草稿時才刪，刪除前先跟使用者確認標題。
+
 ## 錯誤處理
 - 回應的 ok 為 false 時，error 會說明原因。欄位格式錯誤就修正後重送一次；401/403 代表金鑰無效、過期或權限不足，請停下來告訴使用者，不要重試。
-- 不要刪除或修改任何既有公告；這個接口只用來新增。
+- 沒有「可編輯、刪除草稿」權限時，不要嘗試修改或刪除；不確定的事情先問使用者。
 `;
 
 export function buildAiPrompt(baseUrl: string): string {

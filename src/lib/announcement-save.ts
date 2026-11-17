@@ -1,12 +1,12 @@
 import "server-only";
 import { revalidatePath } from "next/cache";
-import { all, batch, first, newId, nowIso, placeholders, stmt } from "./db";
+import { all, batch, env, first, newId, nowIso, placeholders, stmt } from "./db";
 import { getAnnouncementById } from "./announcements";
 import type { StatusKey } from "./constants";
 import { fromInputValue } from "./format";
 import { deleteObject, keyFromUrl } from "./storage";
 import { normalizeQuestions } from "./survey";
-import { wouldUnpublish } from "./lifecycle-sql";
+import { SHOULD_UNPUBLISH, SHOULD_UNPUBLISH_PARAMS, wouldUnpublish } from "./lifecycle-sql";
 import { announcementSchema, firstZodError, SAVE_INTENTS, type SaveIntent } from "./validation";
 
 type Fail = { ok: false; error: string };
@@ -16,26 +16,35 @@ export type SaveResult = Fail | { ok: true; id: string; slug: string; status: St
 export const randomHex = (bytes: number) =>
   Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) => b.toString(16).padStart(2, "0")).join("");
 
-/** 刪除已經沒有任何地方引用的實體檔案（一次查詢檢查全部候選檔案） */
+// 會引用上傳檔案的所有欄位。D1 的 UNION 最多 5 段，所以改成每個欄位各查一次（用 batch 一次送出）
+const FILE_COLUMNS: [table: string, column: string][] = [
+  ["Announcement", "coverImage"],
+  ["Attachment", "fileUrl"],
+  ["AnnouncementImage", "url"],
+  ["SiteSetting", "value"],
+  ["Milestone", "coverImage"],
+  ["Officer", "photoUrl"],
+  ["Organization", "logoUrl"],
+];
+
+/**
+ * 刪除已經沒有任何地方引用的實體檔案。
+ * 這是收尾工作：失敗只記錄下來，不影響已經完成的刪除或儲存（頂多留下用不到的檔案）。
+ */
 export async function cleanupFiles(urls: (string | null | undefined)[]) {
   const unique = [...new Set(urls.filter((u): u is string => Boolean(u && keyFromUrl(u))))].slice(0, 20);
   if (!unique.length) return;
-  const ph = placeholders(unique.length);
-  const used = await all<{ u: string }>(
-    `SELECT "coverImage" AS u FROM "Announcement" WHERE "coverImage" IN (${ph})
-     UNION SELECT "fileUrl" FROM "Attachment" WHERE "fileUrl" IN (${ph})
-     UNION SELECT "url" FROM "AnnouncementImage" WHERE "url" IN (${ph})
-     UNION SELECT "value" FROM "SiteSetting" WHERE "value" IN (${ph})
-     UNION SELECT "coverImage" FROM "Milestone" WHERE "coverImage" IN (${ph})
-     UNION SELECT "photoUrl" FROM "Officer" WHERE "photoUrl" IN (${ph})
-     UNION SELECT "logoUrl" FROM "Organization" WHERE "logoUrl" IN (${ph})`,
-    ...unique, ...unique, ...unique, ...unique, ...unique, ...unique, ...unique,
-  );
-  const usedSet = new Set(used.map((r) => r.u));
-  await Promise.all(unique.filter((u) => !usedSet.has(u)).map((u) => deleteObject(keyFromUrl(u)!)));
+  try {
+    const ph = placeholders(unique.length);
+    const results = await env().DB.batch<{ u: string }>(
+      FILE_COLUMNS.map(([t, c]) => stmt(`SELECT "${c}" AS u FROM "${t}" WHERE "${c}" IN (${ph})`, ...unique)),
+    );
+    const usedSet = new Set(results.flatMap((r) => (r.results ?? []).map((x) => x.u)));
+    await Promise.all(unique.filter((u) => !usedSet.has(u)).map((u) => deleteObject(keyFromUrl(u)!)));
+  } catch (e) {
+    console.error("[cleanupFiles]", e);
+  }
 }
-
-// ───────────────────────── 登入 / 登出 ─────────────────────────
 
 export const ANNOUNCEMENT_COLUMNS = [
   "slug", "title", "subtitle", "summary", "content", "coverImage", "feeType", "feeAmount", "feeDescription", "prize",
@@ -245,4 +254,42 @@ export async function saveAnnouncementCore(id: string | null, raw: unknown, inte
   }
   revalidatePath("/", "layout");
   return { ok: true as const, id: savedId, slug: d.slug, status };
+}
+
+export const MANUAL_STATUSES = ["PUBLISHED", "UNPUBLISHED", "ARCHIVED", "DRAFT"] as const;
+export type ManualStatus = (typeof MANUAL_STATUSES)[number];
+
+/**
+ * 手動變更狀態（單筆或批量共用）。回傳實際更新的筆數。
+ * 重新發布時保留原本的發布時間；已經符合自動下架條件的公告改成「不要自動下架」，否則會馬上又被撤下。
+ */
+export async function setStatusCore(ids: string[], status: ManualStatus): Promise<number> {
+  if (!MANUAL_STATUSES.includes(status) || !ids.length) return 0;
+  const now = nowIso();
+  const res = await stmt(
+    `UPDATE "Announcement" SET "status" = ?, "scheduledAt" = NULL,
+       "publishedAt" = CASE WHEN ? = 'PUBLISHED' THEN COALESCE("publishedAt", ?) ELSE "publishedAt" END, "updatedAt" = ?,
+       "autoUnpublishedAt" = NULL,
+       "unpublishMode" = CASE WHEN ? = 'PUBLISHED' AND ${SHOULD_UNPUBLISH} THEN 'NEVER' ELSE "unpublishMode" END,
+       "unpublishAt" = CASE WHEN ? = 'PUBLISHED' AND "unpublishMode" = 'AT' AND "unpublishAt" <= ? THEN NULL ELSE "unpublishAt" END
+     WHERE "id" IN (${placeholders(ids.length)})`,
+    status, status, now, now, status, ...SHOULD_UNPUBLISH_PARAMS(new Date(now)), status, now, ...ids,
+  ).run();
+  return res.meta.changes ?? 0;
+}
+
+/** 永久刪除公告（連同分類關聯、附件、圖片、問卷回覆），再清掉沒人用的檔案。回傳刪除筆數 */
+export async function deleteAnnouncementsCore(ids: string[]): Promise<number> {
+  if (!ids.length) return 0;
+  const ph = placeholders(ids.length);
+  const files = await env().DB.batch<{ u: string | null }>([
+    stmt(`SELECT "coverImage" AS u FROM "Announcement" WHERE "id" IN (${ph})`, ...ids),
+    stmt(`SELECT "fileUrl" AS u FROM "Attachment" WHERE "announcementId" IN (${ph})`, ...ids),
+    stmt(`SELECT "url" AS u FROM "AnnouncementImage" WHERE "announcementId" IN (${ph})`, ...ids),
+  ]);
+  const res = await stmt(`DELETE FROM "Announcement" WHERE "id" IN (${ph})`, ...ids).run();
+  const urls = files.flatMap((r) => (r.results ?? []).map((x) => x.u));
+  // cleanupFiles 一次最多檢查 20 個檔案，分批處理
+  for (let i = 0; i < urls.length; i += 20) await cleanupFiles(urls.slice(i, i + 20));
+  return res.meta.changes ?? 0;
 }

@@ -31,6 +31,8 @@ export function Filters({
   const sources = categories.filter((c) => c.kind === "SOURCE" && (c.count > 0 || f.sources.includes(c.slug)));
   const types = categories.filter((c) => c.kind === "EVENT_TYPE" && (c.count > 0 || f.types.includes(c.slug)));
   const active = hasActiveFilters(f);
+  const picked = f.sources.length + f.types.length + (f.fee ? 1 : 0);
+  const toggleId = `filters-${basePath === "/" ? "home" : "list"}`;
 
   return (
     <div className="border-2 border-ink bg-white">
@@ -54,7 +56,21 @@ export function Filters({
         </button>
       </form>
 
-      <div className="divide-y divide-line">
+      {/* 手機版：來源、類型、費用收在「篩選條件」裡，點開才顯示，避免一進來就要滑很久才看到公告；
+          桌面版一律展開。用 checkbox 切換，不需要 JavaScript */}
+      <input type="checkbox" id={toggleId} className="peer sr-only" defaultChecked={picked > 0} />
+      <label
+        htmlFor={toggleId}
+        className="flex cursor-pointer select-none items-center justify-between gap-3 px-4 py-3 text-sm font-black peer-focus-visible:bg-sun-soft md:hidden [&_.chev]:transition-transform peer-checked:[&_.chev]:rotate-180"
+      >
+        <span>
+          篩選條件
+          <span className="ml-2 font-medium text-muted">活動來源・類型・費用</span>
+          {picked > 0 && <span className="ml-2 bg-flame px-1.5 py-0.5 text-xs text-white">已選 {picked}</span>}
+        </span>
+        <span className="chev text-base" aria-hidden>▾</span>
+      </label>
+      <div className="hidden divide-y divide-line border-t border-line peer-checked:block md:block md:border-t-0">
         <FilterGroup label="活動來源" code="SOURCE">
           {sources.map((c) => (
             <Link key={c.id} href={href({ sources: toggle(f.sources, c.slug) })} scroll={false} className="chip" aria-pressed={f.sources.includes(c.slug)}>

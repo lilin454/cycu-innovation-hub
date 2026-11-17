@@ -7,11 +7,14 @@ import { assertAdmin, hashPassword, login, logout, verifyPassword, type CurrentU
 import { getAnnouncementById, randomSlug } from "@/lib/announcements";
 import { SETTING_DEFAULTS, type SettingKey } from "@/lib/settings";
 import { resolveSurveyQuestions } from "@/lib/survey";
-import { SHOULD_UNPUBLISH, SHOULD_UNPUBLISH_PARAMS } from "@/lib/lifecycle-sql";
 import {
   childInserts,
   cleanupFiles,
+  deleteAnnouncementsCore,
   insertAnnouncement,
+  MANUAL_STATUSES,
+  setStatusCore,
+  type ManualStatus,
   randomHex,
   saveAnnouncementCore,
   type ColumnValues,
@@ -142,23 +145,11 @@ export async function duplicateAnnouncement(id: string) {
   return { ok: true as const, id: copyId };
 }
 
-export async function setAnnouncementStatus(id: string, status: "PUBLISHED" | "UNPUBLISHED" | "ARCHIVED" | "DRAFT") {
+export async function setAnnouncementStatus(id: string, status: ManualStatus) {
   const { denied } = await guard();
   if (denied) return denied;
-  if (!["PUBLISHED", "UNPUBLISHED", "ARCHIVED", "DRAFT"].includes(status)) return fail("不支援的狀態。");
-  const now = nowIso();
-  // 重新發布時保留原本的發布時間；
-  // 手動重新發布已經符合自動下架條件的公告時，改成「不要自動下架」，否則會馬上又被撤下
-  const changed = await run(
-    `UPDATE "Announcement" SET "status" = ?, "scheduledAt" = NULL,
-       "publishedAt" = CASE WHEN ? = 'PUBLISHED' THEN COALESCE("publishedAt", ?) ELSE "publishedAt" END, "updatedAt" = ?,
-       "autoUnpublishedAt" = NULL,
-       "unpublishMode" = CASE WHEN ? = 'PUBLISHED' AND ${SHOULD_UNPUBLISH} THEN 'NEVER' ELSE "unpublishMode" END,
-       "unpublishAt" = CASE WHEN ? = 'PUBLISHED' AND "unpublishMode" = 'AT' AND "unpublishAt" <= ? THEN NULL ELSE "unpublishAt" END
-     WHERE "id" = ?`,
-    status, status, now, now, status, ...SHOULD_UNPUBLISH_PARAMS(new Date(now)), status, now, String(id),
-  );
-  if (!changed) return fail("找不到這則公告。");
+  if (!MANUAL_STATUSES.includes(status)) return fail("不支援的狀態。");
+  if (!(await setStatusCore([String(id)], status))) return fail("找不到這則公告。");
   refreshPublic();
   return { ok: true as const };
 }
@@ -176,12 +167,31 @@ export async function toggleFlag(id: string, flag: "isPinned" | "isFeatured") {
 export async function deleteAnnouncement(id: string) {
   const { denied } = await guard(true);
   if (denied) return denied;
-  const a = await getAnnouncementById(id);
-  if (!a) return fail("找不到這則公告，可能已被刪除。");
-  await run(`DELETE FROM "Announcement" WHERE "id" = ?`, a.id);
-  await cleanupFiles([a.coverImage, ...a.attachments.map((x) => x.fileUrl), ...a.images.map((x) => x.url)]);
+  if (!(await deleteAnnouncementsCore([String(id)]))) return fail("找不到這則公告，可能已被刪除。");
   refreshPublic();
   return { ok: true as const };
+}
+
+export type BulkOp = "publish" | "unpublish" | "archive" | "draft" | "delete";
+const BULK_STATUS: Record<Exclude<BulkOp, "delete">, ManualStatus> = {
+  publish: "PUBLISHED", unpublish: "UNPUBLISHED", archive: "ARCHIVED", draft: "DRAFT",
+};
+
+/** 公告管理的批量操作：刪除只有總管理員可以執行，其他狀態變更所有管理員都可以 */
+export async function bulkAnnouncements(rawIds: string[], op: BulkOp) {
+  const { denied } = await guard(op === "delete");
+  if (denied) return denied;
+  if (!Array.isArray(rawIds)) return fail("資料格式不正確。");
+  const ids = [...new Set(rawIds.map(String))].filter((id) => /^[a-z0-9_-]{1,40}$/i.test(id));
+  if (!ids.length) return fail("請先勾選公告。");
+  if (ids.length > 100) return fail("一次最多處理 100 則。");
+  let count: number;
+  if (op === "delete") count = await deleteAnnouncementsCore(ids);
+  else if (op in BULK_STATUS) count = await setStatusCore(ids, BULK_STATUS[op]);
+  else return fail("不支援的操作。");
+  refreshPublic();
+  const skipped = ids.length - count;
+  return { ok: true as const, count, skipped, note: skipped ? "可能已被刪除" : "" };
 }
 
 // ───────────────────────── 分類（僅總管理員） ─────────────────────────
@@ -499,7 +509,7 @@ export async function setPlacement(key: "partnersPlacement" | "sourcesPlacement"
 
 // ───────────────────────── AI 匯入：API 金鑰（僅總管理員） ─────────────────────────
 
-export async function createAiToken(raw: { name: string; canPublish: boolean; days: number }) {
+export async function createAiToken(raw: { name: string; canPublish: boolean; canEditDrafts: boolean; days: number }) {
   const { user, denied } = await guard(true);
   if (denied) return denied;
   const name = String(raw?.name ?? "").trim().slice(0, 40);
@@ -509,7 +519,7 @@ export async function createAiToken(raw: { name: string; canPublish: boolean; da
     `SELECT COUNT(*) AS n FROM "ApiToken" WHERE "revokedAt" IS NULL AND "expiresAt" > ?`, nowIso(),
   );
   if ((active?.n ?? 0) >= 10) return fail("有效的金鑰最多 10 把，請先停用不用的金鑰。");
-  const token = await createApiToken(user.id, name, Boolean(raw?.canPublish), days);
+  const token = await createApiToken(user.id, name, Boolean(raw?.canPublish), Boolean(raw?.canEditDrafts), days);
   revalidatePath("/admin/ai");
   return { ok: true as const, token };
 }

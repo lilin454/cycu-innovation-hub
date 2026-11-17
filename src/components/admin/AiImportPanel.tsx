@@ -23,6 +23,7 @@ export function AiTokenManager({ tokens }: { tokens: ApiTokenRow[] }) {
   const [pending, start] = useTransition();
   const [name, setName] = useState("");
   const [canPublish, setCanPublish] = useState(false);
+  const [canEditDrafts, setCanEditDrafts] = useState(false);
   const [days, setDays] = useState(30);
   const [created, setCreated] = useState<string | null>(null);
   const now = new Date().toISOString();
@@ -31,7 +32,7 @@ export function AiTokenManager({ tokens }: { tokens: ApiTokenRow[] }) {
     e.preventDefault();
     start(async () => {
       try {
-        const res = await createAiToken({ name, canPublish, days });
+        const res = await createAiToken({ name, canPublish, canEditDrafts, days });
         if (!res.ok) return void toast(res.error, "error");
         setCreated(res.token);
         setName("");
@@ -70,7 +71,7 @@ export function AiTokenManager({ tokens }: { tokens: ApiTokenRow[] }) {
         </div>
       )}
 
-      <form onSubmit={create} className="grid gap-4 border-b border-line p-4 md:grid-cols-[minmax(0,1fr)_auto_auto_auto] md:items-end">
+      <form onSubmit={create} className="grid gap-4 border-b border-line p-4 md:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto] md:items-end">
         <label className="block">
           <span className="field-label">名稱</span>
           <input className="input" maxLength={40} required placeholder="例如：Claude 上架用" value={name} onChange={(e) => setName(e.target.value)} />
@@ -85,10 +86,14 @@ export function AiTokenManager({ tokens }: { tokens: ApiTokenRow[] }) {
           <input type="checkbox" className="h-5 w-5 accent-[#0b2a4a]" checked={canPublish} onChange={(e) => setCanPublish(e.target.checked)} />
           允許直接發布
         </label>
+        <label className="flex cursor-pointer items-center gap-2 pb-2.5 text-sm font-bold">
+          <input type="checkbox" className="h-5 w-5 accent-[#0b2a4a]" checked={canEditDrafts} onChange={(e) => setCanEditDrafts(e.target.checked)} />
+          可編輯、刪除草稿
+        </label>
         <button type="submit" className="btn btn-ink" disabled={pending}>{pending ? "建立中…" : "建立金鑰"}</button>
       </form>
       <p className="border-b border-line px-4 py-2 text-xs text-muted">
-        沒勾「允許直接發布」的金鑰只能把公告存成草稿，需要你到「公告管理」確認後再發布（建議先用這種）。
+        沒勾「允許直接發布」的金鑰只能把公告存成草稿，需要你到「公告管理」確認後再發布（建議先用這種）。勾「可編輯、刪除草稿」後，AI 可以修改或刪除「草稿」狀態的公告，已發布、下架、封存的公告一律不能動。
       </p>
 
       {tokens.length === 0 ? (
@@ -105,7 +110,7 @@ export function AiTokenManager({ tokens }: { tokens: ApiTokenRow[] }) {
                     <code className="ml-2 text-xs font-normal text-muted">{t.prefix}…</code>
                   </span>
                   <span className="text-xs text-muted">
-                    {t.canPublish ? "可直接發布" : "只能存草稿"}・建立 {fmt(t.createdAt)}・到期 {fmt(t.expiresAt)}・最後使用 {fmt(t.lastUsedAt)}
+                    {t.canPublish ? "可直接發布" : "只能存草稿"}{t.canEditDrafts ? "・可編輯刪除草稿" : ""}・建立 {fmt(t.createdAt)}・到期 {fmt(t.expiresAt)}・最後使用 {fmt(t.lastUsedAt)}
                   </span>
                 </span>
                 <span className={`border-[1.5px] px-2 py-0.5 text-xs font-bold ${state === "有效" ? "border-ok bg-ok text-white" : "border-muted text-muted"}`}>{state}</span>

@@ -6,7 +6,7 @@ export async function GET(req: Request) {
   return withAi(req, false, async (caller) =>
     json({
       ok: true,
-      caller: { name: caller.user.displayName, via: caller.via, canPublish: caller.canPublish },
+      caller: { name: caller.user.displayName, via: caller.via, canPublish: caller.canPublish, canEditDrafts: caller.canEditDrafts },
       ...(await aiManifest()),
     }),
   );

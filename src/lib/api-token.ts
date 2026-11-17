@@ -16,14 +16,14 @@ async function sha256(v: string): Promise<string> {
   return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-export async function createApiToken(userId: string, name: string, canPublish: boolean, days: number): Promise<string> {
+export async function createApiToken(userId: string, name: string, canPublish: boolean, canEditDrafts: boolean, days: number): Promise<string> {
   const secret = Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, "0")).join("");
   const token = `${PREFIX}${secret}`;
   const now = new Date();
   await run(
-    `INSERT INTO "ApiToken" ("id", "name", "tokenHash", "prefix", "userId", "canPublish", "createdAt", "expiresAt")
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    newId(), name, await sha256(token), token.slice(0, PREFIX.length + 6), userId, canPublish ? 1 : 0,
+    `INSERT INTO "ApiToken" ("id", "name", "tokenHash", "prefix", "userId", "canPublish", "canEditDrafts", "createdAt", "expiresAt")
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    newId(), name, await sha256(token), token.slice(0, PREFIX.length + 6), userId, canPublish ? 1 : 0, canEditDrafts ? 1 : 0,
     now.toISOString(), new Date(now.getTime() + days * 24 * 3600 * 1000).toISOString(),
   );
   return token;
@@ -34,6 +34,7 @@ export type ApiTokenRow = {
   name: string;
   prefix: string;
   canPublish: number;
+  canEditDrafts: number;
   createdAt: string;
   expiresAt: string;
   lastUsedAt: string | null;
@@ -44,7 +45,7 @@ export type ApiTokenRow = {
 export async function listApiTokens(): Promise<ApiTokenRow[]> {
   try {
     return await all<ApiTokenRow>(
-      `SELECT t."id", t."name", t."prefix", t."canPublish", t."createdAt", t."expiresAt", t."lastUsedAt", t."revokedAt", u."displayName" AS ownerName
+      `SELECT t."id", t."name", t."prefix", t."canPublish", t."canEditDrafts", t."createdAt", t."expiresAt", t."lastUsedAt", t."revokedAt", u."displayName" AS ownerName
        FROM "ApiToken" t JOIN "User" u ON u."id" = t."userId" ORDER BY t."createdAt" DESC LIMIT 50`,
     );
   } catch {
@@ -52,7 +53,7 @@ export async function listApiTokens(): Promise<ApiTokenRow[]> {
   }
 }
 
-export type AiCaller = { user: CurrentUser; canPublish: boolean; via: "token" | "session" };
+export type AiCaller = { user: CurrentUser; canPublish: boolean; canEditDrafts: boolean; via: "token" | "session" };
 
 export class ApiAuthError extends Error {
   constructor(message: string, public status: 401 | 403) {
@@ -72,10 +73,10 @@ export async function authenticateAi(req: Request, write: boolean): Promise<AiCa
     const token = m[1];
     if (!token.startsWith(PREFIX) || !/^[a-z_]+[a-f0-9]{64}$/.test(token)) throw new ApiAuthError("API 金鑰格式不正確。", 401);
     const row = await first<{
-      id: string; canPublish: number; expiresAt: string; revokedAt: string | null;
+      id: string; canPublish: number; canEditDrafts: number; expiresAt: string; revokedAt: string | null;
       userId: string; account: string; displayName: string; role: CurrentUser["role"];
     }>(
-      `SELECT t."id" AS id, t."canPublish", t."expiresAt", t."revokedAt", u."id" AS userId, u."account", u."displayName", u."role"
+      `SELECT t."id" AS id, t."canPublish", t."canEditDrafts", t."expiresAt", t."revokedAt", u."id" AS userId, u."account", u."displayName", u."role"
        FROM "ApiToken" t JOIN "User" u ON u."id" = t."userId" WHERE t."tokenHash" = ?`,
       await sha256(token),
     );
@@ -86,6 +87,7 @@ export async function authenticateAi(req: Request, write: boolean): Promise<AiCa
     return {
       user: { id: row.userId, account: row.account, displayName: row.displayName, role: row.role },
       canPublish: row.canPublish === 1,
+      canEditDrafts: row.canEditDrafts === 1,
       via: "token",
     };
   }
@@ -99,5 +101,5 @@ export async function authenticateAi(req: Request, write: boolean): Promise<AiCa
     const originHost = origin ? new URL(origin).host : "";
     if (!origin || (originHost !== host && originHost !== publicHost())) throw new ApiAuthError("不允許的請求來源。", 403);
   }
-  return { user, canPublish: true, via: "session" };
+  return { user, canPublish: true, canEditDrafts: true, via: "session" };
 }

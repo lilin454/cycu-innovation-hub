@@ -5,7 +5,8 @@ import { randomSlug } from "./announcements";
 import { FEE_TYPES } from "./constants";
 import { toInputValue } from "./format";
 import { UNPUBLISH_MODES } from "./lifecycle-sql";
-import { defaultSurveyQuestions, SURVEY_TYPES } from "./survey";
+import { defaultSurveyQuestions, resolveSurveyQuestions, SURVEY_TYPES } from "./survey";
+import type { AnnouncementDetail } from "./types";
 import type { AnnouncementInput, SaveIntent } from "./validation";
 
 /**
@@ -126,12 +127,11 @@ export async function convertAiAnnouncement(a: AiAnnouncement): Promise<{ ok: tr
   }
   if (!slug) slug = await randomSlug();
 
-  let surveyEnabled = false;
-  let surveyQuestions: AnnouncementInput["surveyQuestions"] = [];
-  if (a.survey?.enabled) {
-    surveyEnabled = true;
-    surveyQuestions = (a.survey.questions?.length ? a.survey.questions : defaultSurveyQuestions()) as AnnouncementInput["surveyQuestions"];
-  }
+  // 有給題目就沿用（即使問卷關閉也保留，之後打開不用重設）；開啟問卷但沒給題目時用預設題目
+  const surveyEnabled = Boolean(a.survey?.enabled);
+  const surveyQuestions = (
+    a.survey?.questions?.length ? a.survey.questions : surveyEnabled ? defaultSurveyQuestions() : []
+  ) as AnnouncementInput["surveyQuestions"];
 
   const intent: SaveIntent = a.action === "publish" ? "publish" : a.action === "schedule" ? "schedule" : "draft";
   const input: AnnouncementInput = {
@@ -210,6 +210,57 @@ export async function aiManifest() {
       "GET /api/ai/announcements?q=關鍵字": "查詢最近的公告（避免重複上架）",
       "POST /api/ai/files": "multipart/form-data，欄位 file；回傳 url、fileName、fileType、fileSize",
       "POST /api/ai/announcements": "JSON；新增公告（預設存成草稿）",
+      "GET /api/ai/announcements/{id}": "讀取單一公告的完整內容（AI 格式）",
+      "PATCH /api/ai/announcements/{id}": "修改草稿：只送要改的欄位，其餘保留（需要「可編輯、刪除草稿」權限）",
+      "DELETE /api/ai/announcements/{id}": "刪除草稿（需要「可編輯、刪除草稿」權限）",
     },
+  };
+}
+
+/** 把資料庫裡的公告轉回 AI 使用的格式（GET 單筆、PATCH 合併修改時使用） */
+export function aiFromExisting(a: AnnouncementDetail) {
+  const t = (d: Date | null) => (d ? toInputValue(d) : "");
+  return {
+    id: a.id,
+    status: a.status,
+    slug: a.slug,
+    title: a.title,
+    subtitle: a.subtitle ?? "",
+    summary: a.summary ?? "",
+    content: a.content,
+    startAt: t(a.startAt),
+    endAt: t(a.endAt),
+    registrationDeadline: t(a.registrationDeadline),
+    location: a.location ?? "",
+    organizer: a.organizer ?? "",
+    coOrganizer: a.coOrganizer ?? "",
+    targetAudience: a.targetAudience ?? "",
+    feeType: a.feeType,
+    feeAmount: a.feeType === "FREE" ? null : a.feeAmount,
+    feeDescription: a.feeDescription ?? "",
+    prize: a.prize ?? "",
+    registrationUrl: a.registrationUrl ?? "",
+    registrationMethod: a.registrationMethod ?? "",
+    youtubeUrl: a.youtubeUrl ?? "",
+    contactName: a.contactName ?? "",
+    contactEmail: a.contactEmail ?? "",
+    contactPhone: a.contactPhone ?? "",
+    contactLine: a.contactLine ?? "",
+    contactOther: a.contactOther ?? "",
+    invitationText: a.invitationText ?? "",
+    customShareText: a.customShareText ?? "",
+    sources: a.categories.filter((c) => c.kind === "SOURCE").map((c) => c.name),
+    eventTypes: a.categories.filter((c) => c.kind === "EVENT_TYPE").map((c) => c.name),
+    tags: a.categories.filter((c) => c.kind === "TAG").map((c) => c.name),
+    coverImage: a.coverImage ?? "",
+    images: a.images.map((i) => ({ url: i.url, alt: i.alt ?? "" })),
+    attachments: a.attachments.map((f) => ({
+      url: f.fileUrl, fileName: f.fileName, fileType: f.fileType, fileSize: f.fileSize, displayName: f.displayName,
+    })),
+    survey: { enabled: a.surveyEnabled, questions: resolveSurveyQuestions(a) },
+    isFeatured: a.isFeatured,
+    isPinned: a.isPinned,
+    unpublishMode: a.unpublishMode,
+    unpublishAt: t(a.unpublishAt),
   };
 }
