@@ -34,6 +34,8 @@ export const SETTING_DEFAULTS = {
   showAbout: "1",
   showCalendar: "1",
   showRecords: "1",
+  // Google Search Console 的驗證碼（HTML 標記的 content 值），讓總管理員自己貼上
+  googleSiteVerification: "",
   // "1"＝活動結束後自動下架（各公告可以另外設定）；預設關閉
   autoUnpublishEnded: "0",
 } as const;

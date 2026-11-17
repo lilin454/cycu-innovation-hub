@@ -141,6 +141,13 @@ export const settingsSchema = z.object({
   showCalendar: flag,
   showRecords: flag,
   autoUnpublishEnded: flag,
+  // 可以貼整段 <meta name="google-site-verification" content="…"> 或只貼 content 的值
+  googleSiteVerification: z
+    .string()
+    .trim()
+    .max(300)
+    .transform((v) => /content=["']([^"']+)["']/i.exec(v)?.[1] ?? v)
+    .refine((v) => v === "" || /^[A-Za-z0-9_-]{10,100}$/.test(v), "Google 驗證碼格式不正確，請貼上 Search Console 給的 HTML 標記"),
 });
 
 export const userCreateSchema = z.object({

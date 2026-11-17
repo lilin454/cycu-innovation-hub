@@ -17,6 +17,14 @@ const nextConfig = {
     return [
       { source: "/:path*", headers: security },
       {
+        // 直接打開 workers.dev 網址（不是經由對外網域轉進來）時，告訴搜尋引擎不要收錄，
+        // 避免 Google 把同一個網站收錄成兩份；正式網址以 SITE_URL 為準
+        source: "/:path*",
+        has: [{ type: "host", value: "(?<sub>.*)\\.workers\\.dev" }],
+        missing: [{ type: "header", key: "x-forwarded-host" }],
+        headers: [{ key: "X-Robots-Tag", value: "noindex" }],
+      },
+      {
         // 後台頁面一律不快取，登出後按上一頁也不會顯示舊內容
         source: "/admin/:path*",
         headers: [{ key: "Cache-Control", value: "no-store, max-age=0, must-revalidate" }],

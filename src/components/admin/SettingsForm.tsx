@@ -160,6 +160,19 @@ export function SettingsForm({ initial, upcoming }: { initial: Values; upcoming:
         </section>
 
         <section className="panel">
+          <h2 className="border-b-2 border-ink bg-paper-2 px-4 py-2.5 font-black">搜尋引擎（Google）</h2>
+          <div className="space-y-3 p-4 md:p-6">
+            <Row
+              label="Google Search Console 驗證碼"
+              hint="在 Search Console 新增資源時選「網址前置字元」→ 驗證方法選「HTML 標記」，把整段 <meta …> 貼在這裡並儲存，再回 Search Console 按「驗證」。"
+            >
+              <input className="input font-mono text-sm" maxLength={300} placeholder={'<meta name="google-site-verification" content="…" />'} {...bind("googleSiteVerification")} />
+            </Row>
+            <p className="field-hint !mt-0">網站地圖網址：<code className="select-all">/sitemap.xml</code>（驗證完成後在 Search Console 的「Sitemap」提交）。</p>
+          </div>
+        </section>
+
+        <section className="panel">
           <h2 className="border-b-2 border-ink bg-paper-2 px-4 py-2.5 font-black">公告自動下架</h2>
           <div className="space-y-3 p-4 md:p-6">
             {toggle(

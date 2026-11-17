@@ -24,6 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
       images: [{ url: s.logoUrl || "/brand/logo.jpg" }],
     },
     icons: { icon: s.logoUrl || "/brand/logo.jpg" },
+    ...(s.googleSiteVerification ? { verification: { google: s.googleSiteVerification } } : {}),
   };
 }
 

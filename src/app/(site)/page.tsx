@@ -16,6 +16,10 @@ import { AnnouncementRow, typeLabel } from "@/components/site/AnnouncementRow";
 import { Cover } from "@/components/site/Cover";
 import { EmptyState, Filters, Pagination } from "@/components/site/Filters";
 import { TagList } from "@/components/site/Tags";
+import type { Metadata } from "next";
+
+// 首頁的正式網址固定是 /，帶篩選參數的網址不會被 Google 當成重複頁面
+export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
