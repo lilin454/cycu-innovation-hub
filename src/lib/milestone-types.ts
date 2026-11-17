@@ -32,4 +32,6 @@ export type Milestone = {
   status: "DRAFT" | "PUBLISHED";
   createdAt: string;
   updatedAt: string;
+  /** 來自活動公告（在後台「活動紀錄」勾選）時才有，值為公告的網址代稱；公告已下架時為 null */
+  fromAnnouncement?: { slug: string | null };
 };

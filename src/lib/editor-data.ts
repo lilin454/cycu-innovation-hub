@@ -18,7 +18,7 @@ export function emptyInitial(slug: string): EditorInitial {
     targetAudience: "", registrationUrl: "", registrationMethod: "",
     contactName: "", contactEmail: "", contactPhone: "", contactLine: "", contactOther: "",
     invitationText: "", customShareText: "", youtubeUrl: "", prize: "",
-    surveyEnabled: false, surveyQuestions: defaultSurveyQuestions(), isFeatured: false, isPinned: false, scheduledAt: "",
+    surveyEnabled: false, surveyQuestions: defaultSurveyQuestions(), isFeatured: false, isPinned: false, scheduledAt: "", unpublishMode: "DEFAULT", unpublishAt: "",
     attachments: [], images: [],
     status: "DRAFT", publishedAt: null, updatedAt: null,
   };
@@ -61,6 +61,8 @@ export function toInitial(a: AnnouncementDetail): EditorInitial {
     isFeatured: a.isFeatured,
     isPinned: a.isPinned,
     scheduledAt: toInputValue(a.scheduledAt),
+    unpublishMode: a.unpublishMode,
+    unpublishAt: toInputValue(a.unpublishAt),
     attachments: a.attachments.map((f) => ({
       fileUrl: f.fileUrl,
       fileName: f.fileName,

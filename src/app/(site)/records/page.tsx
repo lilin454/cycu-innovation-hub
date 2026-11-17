@@ -119,6 +119,11 @@ export default async function RecordsPage({ searchParams }: Props) {
                         <Content text={it.content} />
                       </div>
                     )}
+                    {it.fromAnnouncement?.slug && (
+                      <p className="mt-3">
+                        <Link href={`/a/${it.fromAnnouncement.slug}`} className="link-arrow text-sm">查看活動公告 <span aria-hidden>→</span></Link>
+                      </p>
+                    )}
                     {it.linkUrl && (
                       <p className="mt-3">
                         <a href={it.linkUrl} target="_blank" rel="noopener noreferrer" className="link-arrow text-sm">相關連結 <span aria-hidden>↗</span></a>

@@ -162,6 +162,20 @@ export function SettingsForm({ initial, upcoming }: { initial: Values; upcoming:
         </section>
 
         <section className="panel">
+          <h2 className="border-b-2 border-ink bg-paper-2 px-4 py-2.5 font-black">公告自動下架</h2>
+          <div className="space-y-3 p-4 md:p-6">
+            {toggle(
+              "autoUnpublishEnded",
+              "活動結束後自動下架公告",
+              "有結束時間的以結束時間為準；只有開始時間的，開始 24 小時後下架。系統每 5 分鐘檢查一次。個別公告可以在編輯頁的「發布設定」改成指定時間或不要自動下架。",
+            )}
+            <p className="field-hint !mt-0">
+              打開後，已經結束的公告會在幾分鐘內被下架（資料不會刪除）。下架的活動可以到「活動紀錄」頁勾選，顯示成活動成果。
+            </p>
+          </div>
+        </section>
+
+        <section className="panel">
           <h2 className="border-b-2 border-ink bg-paper-2 px-4 py-2.5 font-black">社群與聯絡方式</h2>
           <div className="grid gap-5 p-4 sm:grid-cols-2 md:p-6">
             <Row label="Instagram 連結"><input className="input" type="url" placeholder="https://" {...bind("instagramUrl")} /></Row>

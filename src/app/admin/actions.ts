@@ -10,6 +10,7 @@ import { fromInputValue } from "@/lib/format";
 import { deleteObject, keyFromUrl } from "@/lib/storage";
 import { SETTING_DEFAULTS, type SettingKey } from "@/lib/settings";
 import { normalizeQuestions, resolveSurveyQuestions } from "@/lib/survey";
+import { SHOULD_UNPUBLISH, SHOULD_UNPUBLISH_PARAMS, wouldUnpublish } from "@/lib/lifecycle-sql";
 import {
   announcementSchema,
   categorySchema,
@@ -98,6 +99,7 @@ const ANNOUNCEMENT_COLUMNS = [
   "startAt", "endAt", "registrationDeadline", "location", "organizer", "coOrganizer", "targetAudience",
   "registrationUrl", "registrationMethod", "youtubeUrl", "contactName", "contactEmail", "contactPhone", "contactLine",
   "contactOther", "invitationText", "customShareText", "surveyEnabled", "surveyQuestions", "status", "isFeatured", "isPinned", "scheduledAt", "publishedAt",
+  "unpublishMode", "unpublishAt",
 ] as const;
 type Column = (typeof ANNOUNCEMENT_COLUMNS)[number];
 type ColumnValues = Record<Column, string | number | null>;
@@ -148,6 +150,8 @@ export async function saveAnnouncement(id: string | null, raw: unknown, intent: 
   let scheduledAt = fromInputValue(d.scheduledAt);
   if (startAt && endAt && endAt < startAt) return fail("活動結束時間不可早於開始時間。");
   if (d.surveyEnabled && !d.surveyQuestions.length) return fail("問卷至少要有一個題目。");
+  const unpublishAt = d.unpublishMode === "AT" ? fromInputValue(d.unpublishAt) : null;
+  if (d.unpublishMode === "AT" && !unpublishAt) return fail("請設定自動下架的時間。");
 
   const slugOwner = await first<{ id: string }>(`SELECT "id" FROM "Announcement" WHERE "slug" = ?`, d.slug);
   if (slugOwner && slugOwner.id !== id) return fail("這個網址代稱已被其他公告使用，請換一個。");
@@ -186,6 +190,18 @@ export async function saveAnnouncement(id: string | null, raw: unknown, intent: 
         scheduledAt = null;
       }
       break;
+  }
+
+  // 發布中的公告如果會被自動下架規則立刻撤下，先提醒，不要讓它一發布就消失
+  if (status === "PUBLISHED") {
+    const globalOn = (await first<{ value: string }>(`SELECT "value" FROM "SiteSetting" WHERE "key" = 'autoUnpublishEnded'`))?.value === "1";
+    if (wouldUnpublish({ unpublishMode: d.unpublishMode, unpublishAt, startAt, endAt }, globalOn, now)) {
+      return fail(
+        d.unpublishMode === "AT"
+          ? "自動下架時間已經過了，發布後會立刻被下架。請改一個之後的時間，或選「不要自動下架」。"
+          : "這個活動已經結束，依照自動下架設定會立刻被下架。若要繼續公開，請在「發布設定」把自動下架改成「不要自動下架」。",
+      );
+    }
   }
 
   // 分類：只接受資料庫中真的存在的 id；自訂標籤不存在就建立
@@ -251,6 +267,8 @@ export async function saveAnnouncement(id: string | null, raw: unknown, intent: 
     isPinned: d.isPinned ? 1 : 0,
     scheduledAt: iso(scheduledAt),
     publishedAt: iso(publishedAt),
+    unpublishMode: d.unpublishMode,
+    unpublishAt: iso(unpublishAt),
   };
 
   const savedId = existing?.id ?? newId();
@@ -324,6 +342,9 @@ export async function duplicateAnnouncement(id: string) {
     isPinned: 0,
     scheduledAt: null,
     publishedAt: null,
+    // 指定的下架時間不沿用，其餘下架方式照舊
+    unpublishMode: src.unpublishMode === "AT" ? "DEFAULT" : src.unpublishMode,
+    unpublishAt: null,
   };
   const copyId = newId();
   await batch([
@@ -339,12 +360,15 @@ export async function setAnnouncementStatus(id: string, status: "PUBLISHED" | "U
   if (denied) return denied;
   if (!["PUBLISHED", "UNPUBLISHED", "ARCHIVED", "DRAFT"].includes(status)) return fail("不支援的狀態。");
   const now = nowIso();
-  // 重新發布時保留原本的發布時間
+  // 重新發布時保留原本的發布時間；
+  // 手動重新發布已經符合自動下架條件的公告時，改成「不要自動下架」，否則會馬上又被撤下
   const changed = await run(
     `UPDATE "Announcement" SET "status" = ?, "scheduledAt" = NULL,
-       "publishedAt" = CASE WHEN ? = 'PUBLISHED' THEN COALESCE("publishedAt", ?) ELSE "publishedAt" END, "updatedAt" = ?
+       "publishedAt" = CASE WHEN ? = 'PUBLISHED' THEN COALESCE("publishedAt", ?) ELSE "publishedAt" END, "updatedAt" = ?,
+       "unpublishMode" = CASE WHEN ? = 'PUBLISHED' AND ${SHOULD_UNPUBLISH} THEN 'NEVER' ELSE "unpublishMode" END,
+       "unpublishAt" = CASE WHEN ? = 'PUBLISHED' AND "unpublishMode" = 'AT' AND "unpublishAt" <= ? THEN NULL ELSE "unpublishAt" END
      WHERE "id" = ?`,
-    status, status, now, now, String(id),
+    status, status, now, now, status, ...SHOULD_UNPUBLISH_PARAMS(new Date(now)), status, now, String(id),
   );
   if (!changed) return fail("找不到這則公告。");
   refreshPublic();
@@ -558,6 +582,16 @@ export async function saveMilestone(id: string | null, raw: unknown) {
       nullable(d.coverImage), nullable(d.linkUrl), status, now, now,
     );
   }
+  refreshPublic();
+  return { ok: true as const };
+}
+
+/** 勾選／取消：把已結束的活動公告顯示在前台「活動紀錄」 */
+export async function setShowInRecords(id: string, show: boolean) {
+  const { denied } = await guard();
+  if (denied) return denied;
+  const changed = await run(`UPDATE "Announcement" SET "showInRecords" = ? WHERE "id" = ?`, show ? 1 : 0, String(id));
+  if (!changed) return fail("找不到這則公告。");
   refreshPublic();
   return { ok: true as const };
 }

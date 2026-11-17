@@ -1,5 +1,6 @@
 // 資料型別與資料列轉換（D1 回傳的是純字串／數字，這裡轉成應用程式使用的型別）
 import type { FeeTypeKey, KindKey, StatusKey } from "./constants";
+import type { UnpublishMode } from "./lifecycle-sql";
 
 export type Role = "OWNER" | "EDITOR";
 
@@ -51,6 +52,10 @@ export type Announcement = {
   surveyQuestion: string | null;
   surveyOptions: string | null;
   surveyQuestions: string | null; // 新版問卷題目（JSON）
+  unpublishMode: UnpublishMode;
+  unpublishAt: Date | null;
+  autoUnpublishedAt: Date | null;
+  showInRecords: boolean;
   status: StatusKey;
   isFeatured: boolean;
   isPinned: boolean;
@@ -65,8 +70,11 @@ export type AnnouncementDetail = AnnouncementCard & { attachments: Attachment[];
 
 export type AnnouncementRow = Omit<
   Announcement,
-  "startAt" | "endAt" | "registrationDeadline" | "scheduledAt" | "publishedAt" | "createdAt" | "updatedAt" | "isFeatured" | "isPinned" | "surveyEnabled"
+  "startAt" | "endAt" | "registrationDeadline" | "scheduledAt" | "publishedAt" | "createdAt" | "updatedAt" | "isFeatured" | "isPinned" | "surveyEnabled" | "unpublishAt" | "autoUnpublishedAt" | "showInRecords"
 > & {
+  unpublishAt: string | null;
+  autoUnpublishedAt: string | null;
+  showInRecords: number;
   startAt: string | null;
   endAt: string | null;
   registrationDeadline: string | null;
@@ -94,5 +102,9 @@ export function mapAnnouncement(r: AnnouncementRow): Announcement {
     isFeatured: r.isFeatured === 1,
     isPinned: r.isPinned === 1,
     surveyEnabled: r.surveyEnabled === 1,
+    unpublishMode: r.unpublishMode ?? "DEFAULT",
+    unpublishAt: date(r.unpublishAt),
+    autoUnpublishedAt: date(r.autoUnpublishedAt),
+    showInRecords: r.showInRecords === 1,
   };
 }

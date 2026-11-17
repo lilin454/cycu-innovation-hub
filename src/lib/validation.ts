@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { FEE_TYPES } from "./constants";
 import { youtubeId } from "./youtube";
+import { UNPUBLISH_MODES } from "./lifecycle-sql";
 import { SURVEY_MAX_OPTIONS, SURVEY_MAX_QUESTIONS, SURVEY_TYPES } from "./survey";
 
 const text = (max: number) => z.string().trim().max(max, `不可超過 ${max} 字`);
@@ -82,6 +83,8 @@ export const announcementSchema = z.object({
   isFeatured: z.boolean(),
   isPinned: z.boolean(),
   scheduledAt: dateInput,
+  unpublishMode: z.enum(UNPUBLISH_MODES),
+  unpublishAt: dateInput,
   attachments: z
     .array(
       z.object({
@@ -140,6 +143,7 @@ export const settingsSchema = z.object({
   showAbout: flag,
   showCalendar: flag,
   showRecords: flag,
+  autoUnpublishEnded: flag,
 });
 
 export const userCreateSchema = z.object({

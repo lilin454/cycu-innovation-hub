@@ -1,5 +1,6 @@
 import "server-only";
 import { all, first, likePattern, nowIso, placeholders, run } from "./db";
+import { lifecycleStatements } from "./lifecycle-sql";
 import { FEE_SLUG, FEE_TYPES, SORTS, STATUSES, type FeeTypeKey, type SortKey, type StatusKey } from "./constants";
 import {
   mapAnnouncement,
@@ -22,14 +23,12 @@ export const PAGE_SIZE = 8;
  * 1. Cloudflare Cron Trigger 每 5 分鐘執行一次（custom-worker.ts）
  * 2. 前台與後台每次讀取公告之前（保證訪客看到的一定是最新狀態）
  */
+/** 發布到期的排程公告，並自動下架已結束的公告（Cron 之外，前台讀取時也會順便執行，讓狀態即時） */
 export async function publishDue(): Promise<number> {
-  const now = nowIso();
-  return run(
-    `UPDATE "Announcement" SET "status" = 'PUBLISHED', "publishedAt" = "scheduledAt", "scheduledAt" = NULL, "updatedAt" = ?
-     WHERE "status" = 'SCHEDULED' AND "scheduledAt" <= ?`,
-    now,
-    now,
-  );
+  const [pub, unpub] = lifecycleStatements(new Date());
+  const a = await run(pub.sql, ...pub.params);
+  const b = await run(unpub.sql, ...unpub.params);
+  return a + b;
 }
 
 /** 一次查詢取回多則公告的分類，避免逐筆查詢 */

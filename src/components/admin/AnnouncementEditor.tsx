@@ -86,11 +86,15 @@ export function AnnouncementEditor({
   initial,
   categories,
   baseUrl,
+  autoUnpublishGlobal = false,
+  autoUnpublishedAt = null,
 }: {
   id: string | null;
   initial: EditorInitial;
   categories: EditorCategory[];
   baseUrl: string;
+  autoUnpublishGlobal?: boolean;
+  autoUnpublishedAt?: string | null;
 }) {
   const router = useRouter();
   const [form, setForm] = useState<AnnouncementInput>(() => {
@@ -721,6 +725,53 @@ export function AnnouncementEditor({
                 </div>
               </div>
             )}
+
+            <div className="border-2 border-ink bg-white p-4">
+              <p className="font-black">自動下架</p>
+              <p className="field-hint !mt-1">
+                下架後公告不會出現在前台，但資料都還在，可以到「活動紀錄」勾選，讓它以活動成果的形式顯示。
+                目前全站設定：<b>{autoUnpublishGlobal ? "活動結束後自動下架" : "不自動下架"}</b>（總管理員可在系統設定調整）。
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {(
+                  [
+                    ["DEFAULT", "跟隨全站設定", autoUnpublishGlobal ? "活動結束後自動下架" : "目前不會自動下架"],
+                    ["ENDED", "活動結束後自動下架", "有結束時間就以結束時間為準；只有開始時間的話，開始 24 小時後下架"],
+                    ["AT", "指定下架時間", "到了指定時間自動下架"],
+                    ["NEVER", "不要自動下架", "一直公開，直到手動下架"],
+                  ] as const
+                ).map(([value, label, hint]) => (
+                  <label key={value} className="flex cursor-pointer items-start gap-3 border-2 border-line p-3 has-[:checked]:border-ink has-[:checked]:bg-sun-soft">
+                    <input
+                      type="radio"
+                      name="unpublishMode"
+                      className="mt-1 h-4 w-4 accent-[#0b2a4a]"
+                      checked={form.unpublishMode === value}
+                      onChange={() => set("unpublishMode", value)}
+                    />
+                    <span>
+                      <span className="block font-bold">{label}</span>
+                      <span className="text-xs text-muted">{hint}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              {form.unpublishMode === "AT" && (
+                <div className="mt-3 flex flex-wrap items-end gap-3">
+                  <Field label="自動下架時間（台灣時間）">
+                    <input type="datetime-local" className="input" {...text("unpublishAt")} />
+                  </Field>
+                  {(form.endAt || form.startAt) && (
+                    <button type="button" className="btn btn-sm bg-white" onClick={() => set("unpublishAt", form.endAt || form.startAt)}>
+                      設成活動{form.endAt ? "結束" : "開始"}時間
+                    </button>
+                  )}
+                </div>
+              )}
+              {autoUnpublishedAt && status === "UNPUBLISHED" && (
+                <p className="mt-3 text-sm font-bold text-flame-dark">這則公告已於 {formatDateTime(autoUnpublishedAt)} 由系統自動下架。</p>
+              )}
+            </div>
 
             <div className="flex flex-wrap gap-2 border-t border-line pt-5">
               <button type="button" className="btn bg-white" disabled={saving} onClick={() => submit("save")}>
