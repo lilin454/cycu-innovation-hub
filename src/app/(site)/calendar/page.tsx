@@ -141,7 +141,7 @@ export default async function CalendarPage({ searchParams }: Props) {
             {activeDays.map((d) => {
               const weekday = WEEK[new Date(Date.UTC(year, month - 1, d)).getUTCDay()];
               return (
-                <li key={d} id={`day-${d}`} className="grid scroll-mt-24 grid-cols-[4rem_1fr] gap-4 border-b-2 border-ink py-5 md:grid-cols-[6rem_1fr] md:gap-8">
+                <li key={d} id={`day-${d}`} className="grid scroll-mt-24 grid-cols-[4rem_minmax(0,1fr)] gap-4 border-b-2 border-ink py-5 md:grid-cols-[6rem_minmax(0,1fr)] md:gap-8">
                   <div className="datebox">
                     <p className="text-4xl font-black leading-none md:text-5xl">{pad(d)}</p>
                     <p className="mt-1 text-sm font-bold text-muted">週{weekday}</p>

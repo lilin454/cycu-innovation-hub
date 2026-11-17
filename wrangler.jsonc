@@ -32,7 +32,7 @@
   },
   "vars": {
     // 網站對外網址（結尾不要加 /）。留空時會自動使用當下的網域
-    "SITE_URL": ""
+    "SITE_URL": "https://cycuinnovation.vercel.app"
   },
   "observability": {
     "enabled": true

@@ -53,7 +53,7 @@ export default async function RecordsPage({ searchParams }: Props) {
       </header>
 
       <div className="mt-8 border-2 border-ink bg-white">
-        <div className="grid gap-2 border-b border-line px-4 py-3 md:grid-cols-[6rem_1fr] md:items-center">
+        <div className="grid gap-2 border-b border-line px-4 py-3 md:grid-cols-[6rem_minmax(0,1fr)] md:items-center">
           <p className="text-sm font-black">類型</p>
           <div className="flex flex-wrap gap-1.5">
             <Link href={href({ kind: null })} scroll={false} className="chip" aria-pressed={!f.kind}>全部</Link>
@@ -64,7 +64,7 @@ export default async function RecordsPage({ searchParams }: Props) {
             ))}
           </div>
         </div>
-        <div className="grid gap-2 px-4 py-3 md:grid-cols-[6rem_1fr] md:items-center">
+        <div className="grid gap-2 px-4 py-3 md:grid-cols-[6rem_minmax(0,1fr)] md:items-center">
           <p className="text-sm font-black">對象</p>
           <div className="flex flex-wrap gap-1.5">
             <Link href={href({ subject: null })} scroll={false} className="chip" aria-pressed={!f.subject}>全部</Link>
@@ -87,13 +87,13 @@ export default async function RecordsPage({ searchParams }: Props) {
         </div>
       ) : (
         [...years.entries()].map(([year, list]) => (
-          <section key={year} aria-labelledby={`y-${year}`} className="mt-12 grid gap-x-10 gap-y-4 md:grid-cols-[9rem_1fr]">
+          <section key={year} aria-labelledby={`y-${year}`} className="mt-12 grid gap-x-10 gap-y-4 md:grid-cols-[9rem_minmax(0,1fr)]">
             <h2 id={`y-${year}`} className="font-display text-6xl font-black leading-none text-sun [-webkit-text-stroke:2px_var(--color-ink)] md:sticky md:top-24 md:self-start md:text-7xl">
               {year}
             </h2>
             <ol className="border-t-2 border-ink">
               {list.map((it) => (
-                <li key={it.id} className="grid gap-4 border-b-2 border-ink py-6 sm:grid-cols-[1fr_12rem] sm:gap-8">
+                <li key={it.id} className="grid gap-4 border-b-2 border-ink py-6 sm:grid-cols-[minmax(0,1fr)_12rem] sm:gap-8">
                   <div className="min-w-0">
                     <p className="flex flex-wrap items-center gap-2 text-sm">
                       <span className="font-display font-black">

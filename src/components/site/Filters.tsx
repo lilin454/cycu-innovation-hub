@@ -112,7 +112,7 @@ export function Filters({
 
 function FilterGroup({ label, code, children }: { label: string; code: string; children: React.ReactNode }) {
   return (
-    <div className="grid gap-2 px-4 py-3 md:grid-cols-[7rem_1fr] md:items-start">
+    <div className="grid gap-2 px-4 py-3 md:grid-cols-[7rem_minmax(0,1fr)] md:items-start">
       <p className="pt-1 text-sm font-black">
         {label}
         <span className="eyebrow ml-2 text-[0.58rem] text-muted md:ml-0 md:block">{code}</span>

@@ -27,7 +27,7 @@ export default async function AboutPage() {
 
   return (
     <div className="wrap pt-10 md:pt-14">
-      <header className="grid gap-8 border-b-2 border-ink pb-10 md:grid-cols-[1fr_auto] md:items-end">
+      <header className="grid gap-8 border-b-2 border-ink pb-10 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
         <div>
           <p className="eyebrow text-[0.68rem] text-flame-dark">About us</p>
           <h1 className="mt-2 text-4xl font-black md:text-6xl">關於創創社</h1>
@@ -36,7 +36,7 @@ export default async function AboutPage() {
         <Logo src={s.logoUrl} size={128} className="border-2 border-ink" />
       </header>
 
-      <section className="grid gap-8 py-12 md:grid-cols-[14rem_1fr]">
+      <section className="grid gap-8 py-12 md:grid-cols-[14rem_minmax(0,1fr)]">
         <div>
           <p className="eyebrow text-muted">Who we are</p>
           <h2 className="mt-1 text-2xl font-black">我們是誰</h2>
@@ -66,7 +66,7 @@ export default async function AboutPage() {
       </section>
 
       {s.showSources !== "0" && (
-        <section className="grid gap-8 border-t-2 border-ink py-12 md:grid-cols-[14rem_1fr]">
+        <section className="grid gap-8 border-t-2 border-ink py-12 md:grid-cols-[14rem_minmax(0,1fr)]">
           <div>
             <p className="eyebrow text-muted">Sources</p>
             <h2 className="mt-1 text-2xl font-black">活動資訊來源</h2>

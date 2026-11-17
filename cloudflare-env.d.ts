@@ -5,7 +5,7 @@ interface __BaseEnv_CloudflareEnv {
 	FILES: KVNamespace;
 	DB: D1Database;
 	ASSETS: Fetcher;
-	SITE_URL: "";
+	SITE_URL: "https://cycuinnovation.vercel.app";
 	NEXTJS_ENV: string;
 	ADMIN_ACCOUNT: string;
 	ADMIN_PASSWORD: string;

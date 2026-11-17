@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default function NotFound() {
   return (
     <SiteShell>
-      <div className="wrap grid gap-8 py-20 md:grid-cols-[auto_1fr] md:items-center md:py-28">
+      <div className="wrap grid gap-8 py-20 md:grid-cols-[auto_minmax(0,1fr)] md:items-center md:py-28">
         <p className="font-display text-[7rem] font-black leading-none text-sun [-webkit-text-stroke:3px_var(--color-ink)] md:text-[11rem]">404</p>
         <div>
           <p className="eyebrow text-flame-dark">Page not found</p>

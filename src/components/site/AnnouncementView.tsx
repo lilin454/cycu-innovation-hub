@@ -11,7 +11,7 @@ import { TagList } from "./Tags";
 
 function Info({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[5.5rem_1fr] gap-3 border-b border-line py-3 last:border-b-0">
+    <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-3 border-b border-line py-3 last:border-b-0">
       <dt className="text-sm font-black">{label}</dt>
       <dd className="min-w-0 break-words text-[0.95rem]">{children}</dd>
     </div>

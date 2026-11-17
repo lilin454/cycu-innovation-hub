@@ -178,7 +178,13 @@
     font-weight: 700;
     line-height: 1.5;
     white-space: nowrap;
+    max-width: 100%;
     border: 1.5px solid transparent;
+  }
+  /* 獎金文字可能很長，手機上允許換行，避免把版面撐出螢幕 */
+  .tag-prize {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   .tag-source {
     background: var(--color-ink);

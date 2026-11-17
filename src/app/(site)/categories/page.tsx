@@ -24,7 +24,7 @@ export default async function CategoriesPage() {
       </header>
 
       {groups.map((g) => (
-        <section key={g.key} aria-labelledby={`g-${g.key}`} className="mt-12 grid gap-6 md:grid-cols-[14rem_1fr]">
+        <section key={g.key} aria-labelledby={`g-${g.key}`} className="mt-12 grid gap-6 md:grid-cols-[14rem_minmax(0,1fr)]">
           <div>
             <p className="eyebrow text-muted">{g.en}</p>
             <h2 id={`g-${g.key}`} className="mt-1 text-2xl font-black">{g.title}</h2>
@@ -59,7 +59,7 @@ export default async function CategoriesPage() {
         </section>
       ))}
 
-      <section aria-labelledby="g-fee" className="mt-12 grid gap-6 md:grid-cols-[14rem_1fr]">
+      <section aria-labelledby="g-fee" className="mt-12 grid gap-6 md:grid-cols-[14rem_minmax(0,1fr)]">
         <div>
           <p className="eyebrow text-muted">Fee</p>
           <h2 id="g-fee" className="mt-1 text-2xl font-black">費用</h2>

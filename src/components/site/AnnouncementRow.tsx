@@ -12,7 +12,7 @@ export function typeLabel(a: AnnouncementCard): string {
 export function AnnouncementRow({ a }: { a: AnnouncementCard }) {
   const d = dateParts(a.startAt);
   return (
-    <article className="group relative grid grid-cols-[4.25rem_1fr] gap-x-4 gap-y-3 border-b-2 border-ink py-6 md:grid-cols-[6.5rem_1fr_13rem] md:gap-x-8 md:py-8">
+    <article className="group relative grid grid-cols-[4.25rem_minmax(0,1fr)] gap-x-4 gap-y-3 border-b-2 border-ink py-6 md:grid-cols-[6.5rem_minmax(0,1fr)_13rem] md:gap-x-8 md:py-8">
       {/* 活動日期 */}
       <div className="datebox row-span-2 md:row-span-1">
         {d ? (

@@ -34,7 +34,7 @@ export function TagList({
   return (
     <ul className={`flex flex-wrap items-center gap-1.5 ${className}`} aria-label="活動分類">
       {prize?.trim() && (
-        <li><span className="tag tag-prize">獎金｜{prize.trim()}</span></li>
+        <li className="min-w-0 max-w-full"><span className="tag tag-prize">獎金｜{prize.trim()}</span></li>
       )}
       <li><FeeTag feeType={feeType} feeAmount={feeAmount} /></li>
       {shown.map((c) => (
