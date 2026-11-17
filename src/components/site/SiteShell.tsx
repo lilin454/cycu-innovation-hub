@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getSettings } from "@/lib/settings";
+import { aliasList, getSettings } from "@/lib/settings";
 import { SiteHeader } from "./SiteHeader";
 import { Logo } from "./Logo";
 import { isExternal, listOrgs } from "@/lib/organization";
@@ -37,6 +37,7 @@ export async function SiteShell({ children }: { children: React.ReactNode }) {
               <div>
                 <p className="text-lg font-black">{s.siteName}</p>
                 <p className="eyebrow text-[0.6rem] text-paper/60">{s.siteNameEn}</p>
+                {aliasList(s).length > 0 && <p className="mt-1 text-xs text-paper/60">又稱 {aliasList(s).join("・")}</p>}
               </div>
             </div>
             {s.footerText && <p className="mt-6 max-w-md text-xl font-bold leading-relaxed text-sun">{s.footerText}</p>}

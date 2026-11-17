@@ -116,6 +116,7 @@ export const settingsSchema = z.object({
   siteName: text(60).min(1, "請填寫網站名稱"),
   siteShortName: text(60),
   siteNameEn: text(120),
+  siteAliases: text(300),
   logoUrl: z.union([fileUrl, z.literal(""), z.literal("/brand/logo.jpg")]),
   heroTagline: text(60).min(1, "請填寫首頁標語"),
   heroIntro: text(300),

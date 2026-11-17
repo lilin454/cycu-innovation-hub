@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { getBaseUrl, getSettings } from "@/lib/settings";
+import { aliasList, getBaseUrl, getSettings } from "@/lib/settings";
 import { Toaster } from "@/components/Toaster";
 import "./globals.css";
 
@@ -10,16 +10,22 @@ const FONT_URL =
 
 export async function generateMetadata(): Promise<Metadata> {
   const [s, base] = await Promise.all([getSettings(), getBaseUrl()]);
-  const description = s.heroIntro || s.heroTagline;
+  const aliases = aliasList(s);
+  const short = aliases[0];
+  // 描述開頭放社團全名與別名，搜尋「中原創創社」「CYCU Innovation」等名字時比較容易對到本站
+  const description = `${s.siteName}${aliases.length ? `（${aliases.slice(0, 3).join("、")}）` : ""}官方網站。${s.heroIntro || s.heroTagline}`.slice(0, 300);
+  const homeTitle = `${s.siteName}${short ? `｜${short}` : ""} 官方網站`;
   return {
     metadataBase: new URL(base),
-    title: { default: `${s.siteName}｜活動公告平台`, template: `%s｜${s.siteName}` },
+    title: { default: homeTitle, template: `%s｜${s.siteName}` },
     description,
+    keywords: [s.siteName, ...aliases, s.siteNameEn, "中原大學", "創新創業", "創業社團", "活動公告"].filter(Boolean),
+    applicationName: s.siteName,
     openGraph: {
       type: "website",
       siteName: s.siteName,
       locale: "zh_TW",
-      title: `${s.siteName}｜活動公告平台`,
+      title: homeTitle,
       description,
       images: [{ url: s.logoUrl || "/brand/logo.jpg" }],
     },

@@ -7,6 +7,8 @@ export const SETTING_DEFAULTS = {
   siteName: "中原大學創新創業發展社",
   siteShortName: "創創社｜活動公告平台",
   siteNameEn: "CYCU Innovation & Entrepreneurship Development Club",
+  // 社團的其他稱呼，用「、」分隔；會放進網頁標題、描述與結構化資料，讓搜尋這些名字時找得到網站
+  siteAliases: "中原創創社、創創社、中原大學創創社、CYCU Innovation、cycuinnovation",
   logoUrl: "/brand/logo.jpg",
   heroTagline: "讓創意發生，讓想法走進現場。",
   heroIntro:
@@ -39,6 +41,11 @@ export const SETTING_DEFAULTS = {
   // "1"＝活動結束後自動下架（各公告可以另外設定）；預設關閉
   autoUnpublishEnded: "0",
 } as const;
+
+/** 把「其他稱呼」設定拆成陣列（去掉空白與重複） */
+export function aliasList(s: { siteAliases: string }): string[] {
+  return [...new Set(s.siteAliases.split(/[、,，;；\r\n]+/).map((x) => x.trim()).filter(Boolean))].slice(0, 12);
+}
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;
 export type Settings = Record<SettingKey, string>;

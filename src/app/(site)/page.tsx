@@ -11,7 +11,7 @@ import {
 import { dateParts, formatDate, formatRange } from "@/lib/format";
 import { listPublicMilestones } from "@/lib/milestones";
 import { MILESTONE_KIND_LABEL, MILESTONE_SUBJECT_LABEL } from "@/lib/milestone-types";
-import { getSettings } from "@/lib/settings";
+import { aliasList, getBaseUrl, getSettings } from "@/lib/settings";
 import { AnnouncementRow, typeLabel } from "@/components/site/AnnouncementRow";
 import { Cover } from "@/components/site/Cover";
 import { EmptyState, Filters, Pagination } from "@/components/site/Filters";
@@ -39,15 +39,44 @@ export default async function HomePage({ searchParams }: Props) {
   const on = (k: "showNextUp" | "showStats" | "showFeatured" | "showCategoryIndex") => s[k] !== "0";
   const [lead, ...restFeatured] = on("showFeatured") ? featured : [];
 
+  // 給 Google 的結構化資料：告訴它這是哪個組織、有哪些別名與官方帳號，搜尋品牌名稱時用來辨識本站
+  const base = await getBaseUrl();
+  const aliases = aliasList(s);
+  const sameAs = [s.instagramUrl, s.facebookUrl, s.lineUrl, s.otherSocialUrl].filter(Boolean);
+  const jsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      name: s.siteName,
+      alternateName: [...aliases, s.siteNameEn].filter(Boolean),
+      url: `${base}/`,
+      inLanguage: "zh-TW",
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: s.siteName,
+      alternateName: [...aliases, s.siteNameEn].filter(Boolean),
+      url: `${base}/`,
+      logo: new URL(s.logoUrl || "/brand/logo.jpg", base).toString(),
+      description: s.aboutText.slice(0, 300),
+      ...(sameAs.length ? { sameAs } : {}),
+      ...(s.contactEmail ? { email: s.contactEmail } : {}),
+      parentOrganization: { "@type": "CollegeOrUniversity", name: "中原大學", url: "https://www.cycu.edu.tw/" },
+    },
+  ];
+
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
       {/* ── Hero：左側標語、右側「下一場活動」──────────────── */}
       <section className="border-b-2 border-ink">
         <div className="wrap grid grid-cols-[minmax(0,1fr)] lg:grid-cols-12">
           <div className={on("showNextUp") ? "py-10 md:py-14 lg:col-span-7 lg:border-r-2 lg:border-ink lg:py-16 lg:pr-12" : "py-10 md:py-14 lg:col-span-12 lg:py-16"}>
             <p className="eyebrow flex items-center gap-3 text-[0.68rem] text-navy">
               <span className="inline-block h-2.5 w-2.5 bg-flame" aria-hidden />
-              CYCU Innovation &amp; Entrepreneurship
+              {s.siteName}
+              {aliasList(s)[0] && <span className="text-muted">／{aliasList(s)[0]}</span>}
             </p>
             <h1 className="mt-5 text-[2.5rem] font-black leading-[1.12] tracking-tight sm:text-6xl lg:text-[3.3rem] xl:text-[4.2rem]">
               {s.heroTagline.split(/(?<=[，,、])/).map((part, i) => (

@@ -104,6 +104,9 @@ export function SettingsForm({ initial, upcoming }: { initial: Values; upcoming:
             <Row label="網站名稱"><input className="input" maxLength={60} required {...bind("siteName")} /></Row>
             <Row label="網站簡稱"><input className="input" maxLength={60} {...bind("siteShortName")} /></Row>
             <Row label="英文名稱"><input className="input" maxLength={120} {...bind("siteNameEn")} /></Row>
+            <Row label="社團的其他稱呼" hint="用「、」分隔。大家可能會搜尋的名字都放進來，例如簡稱、英文名、IG 帳號，Google 搜尋這些名字時比較容易找到本站。">
+              <input className="input" maxLength={300} {...bind("siteAliases")} />
+            </Row>
           </div>
         </section>
 

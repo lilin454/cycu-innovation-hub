@@ -7,8 +7,8 @@ import { isExternal, listOfficers, listOrgs } from "@/lib/organization";
 import { inAbout, type Org } from "@/lib/organization-types";
 
 export const metadata: Metadata = {
-  title: "關於創創社",
-  description: "認識中原大學創新創業發展社的幹部、合作單位，以及我們彙整活動資訊的來源。",
+  title: "關於中原創創社",
+  description: "認識中原大學創新創業發展社（中原創創社、CYCU Innovation）：社團介紹、幹部團隊、合作單位與活動資訊來源。",
   alternates: { canonical: "/about" },
 };
 
