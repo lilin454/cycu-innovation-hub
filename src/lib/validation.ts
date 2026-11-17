@@ -132,14 +132,11 @@ export const settingsSchema = z.object({
   contactOther: text(200),
   cycuInfo: text(200),
   footerText: text(200),
-  presidentName: text(40),
-  vicePresidentName: text(40),
   nextUpId: z.string().regex(/^[a-z0-9]{0,40}$/i, "下一場活動的設定不正確"),
   showNextUp: flag,
   showStats: flag,
   showFeatured: flag,
   showCategoryIndex: flag,
-  showSources: flag,
   showAbout: flag,
   showCalendar: flag,
   showRecords: flag,
@@ -168,6 +165,33 @@ export const milestoneSchema = z.object({
   coverImage: z.union([fileUrl, z.literal("")]),
   linkUrl: optionalUrl,
   published: z.boolean(),
+});
+
+/** 標誌：自己上傳的檔案或網站內建的 /brand 圖片 */
+const logoPath = z.union([
+  fileUrl,
+  z.string().regex(/^\/brand\/[a-z0-9-]{1,40}\.(png|jpg|jpeg|webp|svg)$/, "標誌路徑不正確"),
+  z.literal(""),
+]);
+
+export const officerSchema = z.object({
+  role: text(20).min(1, "請填寫職稱"),
+  name: text(40).min(1, "請填寫姓名"),
+  photoUrl: z.union([fileUrl, z.literal("")]),
+});
+
+export const orgSchema = z.object({
+  kind: z.enum(["PARTNER", "SOURCE"]),
+  name: text(60).min(1, "請填寫名稱"),
+  logoUrl: logoPath,
+  linkUrl: z
+    .string()
+    .trim()
+    .max(500)
+    .refine(
+      (v) => v === "" || /^https?:\/\/[^\s]+$/i.test(v) || /^\/(?!\/)[^\s]*$/.test(v),
+      "連結請填完整網址（https:// 開頭），或站內路徑（/ 開頭）",
+    ),
 });
 
 export function firstZodError(err: z.ZodError): string {

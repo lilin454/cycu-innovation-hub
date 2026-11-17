@@ -114,12 +114,11 @@ export function SettingsForm({ initial, upcoming }: { initial: Values; upcoming:
               <input className="input" maxLength={60} required {...bind("heroTagline")} />
             </Row>
             <Row label="首頁簡介"><textarea className="input" rows={3} maxLength={300} {...bind("heroIntro")} /></Row>
-            <Row label="社長" hint="顯示在「關於創創社」頁面，留空則不顯示。">
-              <input className="input max-w-xs" maxLength={40} {...bind("presidentName")} />
-            </Row>
-            <Row label="副社長" hint="顯示在「關於創創社」頁面，留空則不顯示。">
-              <input className="input max-w-xs" maxLength={40} {...bind("vicePresidentName")} />
-            </Row>
+            <p className="border-2 border-line bg-white p-3 text-sm">
+              幹部名單、合作單位與活動資訊來源請到
+              <a href="/admin/organization" className="mx-1 font-bold underline">社團資訊</a>
+              頁面新增或刪除。
+            </p>
             <Row
               label="首頁｜下一場活動要顯示哪一場"
               hint="預設自動顯示時間最近的一場。同一天有好幾場時，可以在這裡指定要放哪一場；指定的活動結束後會自動改回最近的一場。"
@@ -156,7 +155,6 @@ export function SettingsForm({ initial, upcoming }: { initial: Values; upcoming:
               {toggle("showCalendar", "「行事曆」頁面", "用月曆顯示各活動時間。隱藏後導覽列的連結也會移除。")}
               {toggle("showRecords", "「活動紀錄」頁面", "獲獎、參訪與活動成果。隱藏後導覽列的連結也會移除。")}
               {toggle("showAbout", "「關於創創社」頁面", "隱藏後導覽列與頁尾的連結也會一併移除。")}
-              {toggle("showSources", "關於頁｜活動資訊來源", "合作單位與資訊來源的標誌。")}
             </div>
           </div>
         </section>

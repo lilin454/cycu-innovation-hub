@@ -15,6 +15,7 @@ type Props = { searchParams: Promise<Record<string, string | string[] | undefine
 
 const WEEK = ["日", "一", "二", "三", "四", "五", "六"];
 const pad = (n: number) => String(n).padStart(2, "0");
+const weekdayOf = (p: { y: string; m: string; d: string }) => new Date(Date.UTC(Number(p.y), Number(p.m) - 1, Number(p.d))).getUTCDay();
 
 export default async function CalendarPage({ searchParams }: Props) {
   const s = await getSettings();
@@ -35,8 +36,11 @@ export default async function CalendarPage({ searchParams }: Props) {
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const firstWeekday = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
 
-  // 把每個活動放進它涵蓋的每一天（跨日活動會出現在多天）
+  // 月曆格：把每個活動放進它涵蓋的每一天（跨日活動會出現在多天）
+  // 下方清單：每個活動只列一次，放在它在這個月的第一天（跨月的活動放在 1 號），時間顯示「幾號到幾號」
   const byDay = new Map<number, typeof events>();
+  const agenda = new Map<number, typeof events>();
+  const agendaDayOf = new Map<string, number>();
   for (const e of events) {
     const sp = dateParts(e.startAt)!;
     const ep = dateParts(e.endAt ?? e.startAt)!;
@@ -44,16 +48,24 @@ export default async function CalendarPage({ searchParams }: Props) {
     const endKey = `${ep.y}-${ep.m}-${ep.d}`;
     for (let d = 1; d <= daysInMonth; d++) {
       const key = `${year}-${pad(month)}-${pad(d)}`;
-      if (key >= startKey && key <= endKey) byDay.set(d, [...(byDay.get(d) ?? []), e]);
+      if (key >= startKey && key <= endKey) {
+        byDay.set(d, [...(byDay.get(d) ?? []), e]);
+        if (!agendaDayOf.has(e.id)) {
+          agendaDayOf.set(e.id, d);
+          agenda.set(d, [...(agenda.get(d) ?? []), e]);
+        }
+      }
     }
   }
+  // 手機版點月曆格要跳到清單裡對應的位置：那天有列出活動就跳那天，否則跳到該活動被列出的那天
+  const anchorFor = (d: number) => (agenda.has(d) ? d : agendaDayOf.get(byDay.get(d)?.[0]?.id ?? "") ?? d);
 
   const prev = month === 1 ? `${year - 1}-12` : `${year}-${pad(month - 1)}`;
   const next = month === 12 ? `${year + 1}-01` : `${year}-${pad(month + 1)}`;
   const isThisMonth = Number(today.y) === year && Number(today.m) === month;
   const cells: (number | null)[] = [...Array.from({ length: firstWeekday }, () => null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
   while (cells.length % 7 !== 0) cells.push(null);
-  const activeDays = [...byDay.keys()].sort((a, b) => a - b);
+  const activeDays = [...agenda.keys()].sort((a, b) => a - b);
 
   return (
     <div className="wrap pt-10 md:pt-14">
@@ -99,7 +111,7 @@ export default async function CalendarPage({ searchParams }: Props) {
                     </p>
                     {list.length > 0 && (
                       <>
-                        <a href={`#day-${d}`} className="mt-1 block md:hidden" aria-label={`${month} 月 ${d} 日有 ${list.length} 個活動`}>
+                        <a href={`#day-${anchorFor(d)}`} className="mt-1 block md:hidden" aria-label={`${month} 月 ${d} 日有 ${list.length} 個活動`}>
                           <span className="inline-flex h-5 min-w-5 items-center justify-center bg-ink px-1 font-display text-[0.7rem] font-bold text-sun">{list.length}</span>
                         </a>
                         <ul className="mt-1 hidden space-y-1 md:block">
@@ -117,7 +129,7 @@ export default async function CalendarPage({ searchParams }: Props) {
                             </li>
                           ))}
                           {list.length > 3 && (
-                            <li><a href={`#day-${d}`} className="text-[0.72rem] font-bold underline">還有 {list.length - 3} 個</a></li>
+                            <li><a href={`#day-${anchorFor(d)}`} className="text-[0.72rem] font-bold underline">還有 {list.length - 3} 個</a></li>
                           )}
                         </ul>
                       </>
@@ -153,17 +165,18 @@ export default async function CalendarPage({ searchParams }: Props) {
                     <p className="mt-1 text-sm font-bold text-muted">週{weekday}</p>
                   </div>
                   <ul className="space-y-4">
-                    {byDay.get(d)!.map((e) => {
+                    {agenda.get(d)!.map((e) => {
                       const sp = dateParts(e.startAt)!;
                       const ep = e.endAt ? dateParts(e.endAt)! : null;
                       const sameDay = !ep || (ep.y === sp.y && ep.m === sp.m && ep.d === sp.d);
                       const time = sameDay
                         ? `${sp.hh}:${sp.mm}${ep ? `–${ep.hh}:${ep.mm}` : ""}`
-                        : `${Number(sp.m)}/${Number(sp.d)} ${sp.hh}:${sp.mm} – ${Number(ep!.m)}/${Number(ep!.d)} ${ep!.hh}:${ep!.mm}`;
+                        : `${Number(sp.m)}/${Number(sp.d)}（${WEEK[weekdayOf(sp)]}）– ${Number(ep!.m)}/${Number(ep!.d)}（${WEEK[weekdayOf(ep!)]}）`;
                       return (
                         <li key={e.id}>
                           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                             <span className="font-display font-black">{time}</span>
+                            {!sameDay && <span className="tag tag-custom">跨日活動</span>}
                             <span className={`tag ${e.feeType === "FREE" ? "tag-free" : "tag-paid"}`}>{feeBadge(e.feeType, e.feeAmount)}</span>
                             {e.prize && <span className="tag tag-prize">獎金｜{e.prize}</span>}
                             {e.status !== "PUBLISHED" && <span className="tag tag-custom">已結束</span>}

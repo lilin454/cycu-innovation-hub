@@ -21,8 +21,9 @@ export const SETTING_DEFAULTS = {
   contactOther: "",
   cycuInfo: "中原大學｜320 桃園市中壢區中北路 200 號",
   footerText: "創意不該只留在腦中。來現場，和我們一起把它做出來。",
-  presidentName: "林立",
-  vicePresidentName: "楊士霆",
+  // 合作單位／活動資訊來源的顯示位置：about、footer、both、none（在「社團資訊」頁設定）
+  partnersPlacement: "both",
+  sourcesPlacement: "about",
   // 首頁「下一場活動」：空字串＝自動選最近的一場；填公告 id＝由總管理員指定
   nextUpId: "",
   // 板塊顯示開關："1" 顯示、"0" 隱藏
@@ -30,7 +31,6 @@ export const SETTING_DEFAULTS = {
   showStats: "1",
   showFeatured: "1",
   showCategoryIndex: "1",
-  showSources: "1",
   showAbout: "1",
   showCalendar: "1",
   showRecords: "1",

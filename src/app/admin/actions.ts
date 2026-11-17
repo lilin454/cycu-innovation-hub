@@ -2,21 +2,28 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { all, batch, first, newId, nowIso, placeholders, run, stmt } from "@/lib/db";
+import { batch, first, newId, nowIso, run, stmt } from "@/lib/db";
 import { assertAdmin, hashPassword, login, logout, verifyPassword, type CurrentUser } from "@/lib/auth";
 import { getAnnouncementById, randomSlug } from "@/lib/announcements";
-import type { StatusKey } from "@/lib/constants";
-import { fromInputValue } from "@/lib/format";
-import { deleteObject, keyFromUrl } from "@/lib/storage";
 import { SETTING_DEFAULTS, type SettingKey } from "@/lib/settings";
-import { normalizeQuestions, resolveSurveyQuestions } from "@/lib/survey";
-import { SHOULD_UNPUBLISH, SHOULD_UNPUBLISH_PARAMS, wouldUnpublish } from "@/lib/lifecycle-sql";
+import { resolveSurveyQuestions } from "@/lib/survey";
+import { SHOULD_UNPUBLISH, SHOULD_UNPUBLISH_PARAMS } from "@/lib/lifecycle-sql";
 import {
-  announcementSchema,
+  childInserts,
+  cleanupFiles,
+  insertAnnouncement,
+  randomHex,
+  saveAnnouncementCore,
+  type ColumnValues,
+} from "@/lib/announcement-save";
+import { createApiToken } from "@/lib/api-token";
+import { PLACEMENTS, type Placement } from "@/lib/organization-types";
+import {
   categorySchema,
   milestoneSchema,
   firstZodError,
-  SAVE_INTENTS,
+  officerSchema,
+  orgSchema,
   settingsSchema,
   userCreateSchema,
   type SaveIntent,
@@ -40,27 +47,6 @@ function refreshPublic() {
   revalidatePath("/", "layout");
 }
 
-const randomHex = (bytes: number) =>
-  Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) => b.toString(16).padStart(2, "0")).join("");
-
-/** 刪除已經沒有任何地方引用的實體檔案（一次查詢檢查全部候選檔案） */
-async function cleanupFiles(urls: (string | null | undefined)[]) {
-  const unique = [...new Set(urls.filter((u): u is string => Boolean(u && keyFromUrl(u))))].slice(0, 20);
-  if (!unique.length) return;
-  const ph = placeholders(unique.length);
-  const used = await all<{ u: string }>(
-    `SELECT "coverImage" AS u FROM "Announcement" WHERE "coverImage" IN (${ph})
-     UNION SELECT "fileUrl" FROM "Attachment" WHERE "fileUrl" IN (${ph})
-     UNION SELECT "url" FROM "AnnouncementImage" WHERE "url" IN (${ph})
-     UNION SELECT "value" FROM "SiteSetting" WHERE "value" IN (${ph})
-     UNION SELECT "coverImage" FROM "Milestone" WHERE "coverImage" IN (${ph})`,
-    ...unique, ...unique, ...unique, ...unique, ...unique,
-  );
-  const usedSet = new Set(used.map((r) => r.u));
-  await Promise.all(unique.filter((u) => !usedSet.has(u)).map((u) => deleteObject(keyFromUrl(u)!)));
-}
-
-// ───────────────────────── 登入 / 登出 ─────────────────────────
 
 export async function loginAction(_prev: { error: string; account: string } | null, formData: FormData) {
   const account = String(formData.get("account") ?? "");
@@ -94,212 +80,10 @@ export async function changePassword(current: string, next: string) {
 
 // ───────────────────────── 公告 ─────────────────────────
 
-const ANNOUNCEMENT_COLUMNS = [
-  "slug", "title", "subtitle", "summary", "content", "coverImage", "feeType", "feeAmount", "feeDescription", "prize",
-  "startAt", "endAt", "registrationDeadline", "location", "organizer", "coOrganizer", "targetAudience",
-  "registrationUrl", "registrationMethod", "youtubeUrl", "contactName", "contactEmail", "contactPhone", "contactLine",
-  "contactOther", "invitationText", "customShareText", "surveyEnabled", "surveyQuestions", "status", "isFeatured", "isPinned", "scheduledAt", "publishedAt",
-  "unpublishMode", "unpublishAt", "autoUnpublishedAt",
-] as const;
-type Column = (typeof ANNOUNCEMENT_COLUMNS)[number];
-type ColumnValues = Record<Column, string | number | null>;
-
-function insertAnnouncement(id: string, v: ColumnValues, now: string) {
-  const cols = ["id", ...ANNOUNCEMENT_COLUMNS, "createdAt", "updatedAt"];
-  return stmt(
-    `INSERT INTO "Announcement" (${cols.map((c) => `"${c}"`).join(", ")}) VALUES (${placeholders(cols.length)})`,
-    id, ...ANNOUNCEMENT_COLUMNS.map((c) => v[c]), now, now,
-  );
-}
-
-function childInserts(
-  id: string,
-  categoryIds: string[],
-  attachments: { fileUrl: string; fileName: string; displayName: string; fileType: string; fileSize: number }[],
-  images: { url: string; alt: string | null }[],
-) {
-  return [
-    ...categoryIds.map((cid) => stmt(`INSERT OR IGNORE INTO "AnnouncementCategory" ("announcementId", "categoryId") VALUES (?, ?)`, id, cid)),
-    ...attachments.map((a, i) =>
-      stmt(
-        `INSERT INTO "Attachment" ("id", "announcementId", "fileName", "displayName", "fileUrl", "fileType", "fileSize", "sortOrder") VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        newId(), id, a.fileName, a.displayName, a.fileUrl, a.fileType, a.fileSize, i,
-      ),
-    ),
-    ...images.map((img, i) =>
-      stmt(`INSERT INTO "AnnouncementImage" ("id", "announcementId", "url", "alt", "sortOrder") VALUES (?, ?, ?, ?, ?)`, newId(), id, img.url, img.alt, i),
-    ),
-  ];
-}
-
 export async function saveAnnouncement(id: string | null, raw: unknown, intent: SaveIntent) {
   const { denied } = await guard();
   if (denied) return denied;
-  if (!SAVE_INTENTS.includes(intent)) return fail("不支援的操作。");
-
-  const parsed = announcementSchema.safeParse(raw);
-  if (!parsed.success) return fail(firstZodError(parsed.error));
-  const d = parsed.data;
-
-  const existing = id ? await getAnnouncementById(id) : null;
-  if (id && !existing) return fail("找不到這則公告，可能已被刪除。");
-
-  const startAt = fromInputValue(d.startAt);
-  const endAt = fromInputValue(d.endAt);
-  const registrationDeadline = fromInputValue(d.registrationDeadline);
-  let scheduledAt = fromInputValue(d.scheduledAt);
-  if (startAt && endAt && endAt < startAt) return fail("活動結束時間不可早於開始時間。");
-  if (d.surveyEnabled && !d.surveyQuestions.length) return fail("問卷至少要有一個題目。");
-  const unpublishAt = d.unpublishMode === "AT" ? fromInputValue(d.unpublishAt) : null;
-  if (d.unpublishMode === "AT" && !unpublishAt) return fail("請設定自動下架的時間。");
-
-  const slugOwner = await first<{ id: string }>(`SELECT "id" FROM "Announcement" WHERE "slug" = ?`, d.slug);
-  if (slugOwner && slugOwner.id !== id) return fail("這個網址代稱已被其他公告使用，請換一個。");
-
-  const now = new Date();
-  let status: StatusKey = existing?.status ?? "DRAFT";
-  let publishedAt = existing?.publishedAt ?? null;
-  switch (intent) {
-    case "publish":
-      status = "PUBLISHED";
-      publishedAt = publishedAt ?? now;
-      scheduledAt = null;
-      break;
-    case "schedule":
-      if (!scheduledAt) return fail("請先設定預定發布時間。");
-      if (scheduledAt <= now) return fail("預定發布時間必須晚於現在。");
-      status = "SCHEDULED";
-      publishedAt = null;
-      break;
-    case "unpublish":
-      status = "UNPUBLISHED";
-      scheduledAt = null;
-      break;
-    case "archive":
-      status = "ARCHIVED";
-      scheduledAt = null;
-      break;
-    case "draft":
-      status = "DRAFT";
-      scheduledAt = null;
-      break;
-    case "save":
-      if (status === "SCHEDULED") {
-        if (!scheduledAt || scheduledAt <= now) return fail("這則公告已排程，預定發布時間必須晚於現在。");
-      } else {
-        scheduledAt = null;
-      }
-      break;
-  }
-
-  // 發布中的公告如果會被自動下架規則立刻撤下，先提醒，不要讓它一發布就消失
-  if (status === "PUBLISHED") {
-    const globalOn = (await first<{ value: string }>(`SELECT "value" FROM "SiteSetting" WHERE "key" = 'autoUnpublishEnded'`))?.value === "1";
-    if (wouldUnpublish({ unpublishMode: d.unpublishMode, unpublishAt, startAt, endAt }, globalOn, now)) {
-      return fail(
-        d.unpublishMode === "AT"
-          ? "自動下架時間已經過了，發布後會立刻被下架。請改一個之後的時間，或選「不要自動下架」。"
-          : "這個活動已經結束，依照自動下架設定會立刻被下架。若要繼續公開，請在「發布設定」把自動下架改成「不要自動下架」。",
-      );
-    }
-  }
-
-  // 分類：只接受資料庫中真的存在的 id；自訂標籤不存在就建立
-  const wanted = [...new Set(d.categoryIds)].slice(0, 40);
-  const cats = wanted.length
-    ? await all<{ id: string }>(
-        `SELECT "id" FROM "Category" WHERE "kind" IN ('SOURCE', 'EVENT_TYPE') AND "id" IN (${placeholders(wanted.length)})`,
-        ...wanted,
-      )
-    : [];
-  const tagNames = [...new Set(d.customTags)];
-  let tagIds: string[] = [];
-  if (tagNames.length) {
-    await batch(
-      tagNames.map((name) =>
-        stmt(
-          `INSERT OR IGNORE INTO "Category" ("id", "kind", "name", "slug", "color", "sortOrder") VALUES (?, 'TAG', ?, ?, '#55657A', 0)`,
-          newId(), name, `t-${randomHex(4)}`,
-        ),
-      ),
-    );
-    tagIds = (
-      await all<{ id: string }>(`SELECT "id" FROM "Category" WHERE "kind" = 'TAG' AND "name" IN (${placeholders(tagNames.length)})`, ...tagNames)
-    ).map((t) => t.id);
-  }
-  const categoryIds = [...cats.map((c) => c.id), ...tagIds];
-
-  const nullable = (v: string) => (v === "" ? null : v);
-  const iso = (v: Date | null) => (v ? v.toISOString() : null);
-  const values: ColumnValues = {
-    slug: d.slug,
-    title: d.title,
-    subtitle: nullable(d.subtitle),
-    summary: nullable(d.summary),
-    content: d.content,
-    coverImage: nullable(d.coverImage),
-    feeType: d.feeType,
-    feeAmount: d.feeType === "FREE" ? 0 : d.feeAmount,
-    feeDescription: nullable(d.feeDescription),
-    prize: nullable(d.prize),
-    startAt: iso(startAt),
-    endAt: iso(endAt),
-    registrationDeadline: iso(registrationDeadline),
-    location: nullable(d.location),
-    organizer: nullable(d.organizer),
-    coOrganizer: nullable(d.coOrganizer),
-    targetAudience: nullable(d.targetAudience),
-    registrationUrl: nullable(d.registrationUrl),
-    registrationMethod: nullable(d.registrationMethod),
-    youtubeUrl: nullable(d.youtubeUrl),
-    contactName: nullable(d.contactName),
-    contactEmail: nullable(d.contactEmail),
-    contactPhone: nullable(d.contactPhone),
-    contactLine: nullable(d.contactLine),
-    contactOther: nullable(d.contactOther),
-    invitationText: nullable(d.invitationText),
-    customShareText: nullable(d.customShareText),
-    surveyEnabled: d.surveyEnabled ? 1 : 0,
-    // 題目存成 JSON；舊版的 surveyQuestion / surveyOptions 欄位保留不動
-    surveyQuestions: d.surveyQuestions.length ? JSON.stringify(normalizeQuestions(d.surveyQuestions)) : null,
-    status,
-    isFeatured: d.isFeatured ? 1 : 0,
-    isPinned: d.isPinned ? 1 : 0,
-    scheduledAt: iso(scheduledAt),
-    publishedAt: iso(publishedAt),
-    unpublishMode: d.unpublishMode,
-    unpublishAt: iso(unpublishAt),
-    // 只有「維持自動下架狀態、單純儲存內容」時保留標記；其他狀態變更都視為人工處理（行事曆依此判斷）
-    autoUnpublishedAt: status === "UNPUBLISHED" && intent === "save" ? iso(existing?.autoUnpublishedAt ?? null) : null,
-  };
-
-  const savedId = existing?.id ?? newId();
-  const nowStr = nowIso();
-  const images = d.images.map((img) => ({ url: img.url, alt: img.alt || null }));
-  try {
-    // 整批寫入是一個交易：全部成功或全部不變
-    await batch([
-      existing
-        ? stmt(
-            `UPDATE "Announcement" SET ${ANNOUNCEMENT_COLUMNS.map((c) => `"${c}" = ?`).join(", ")}, "updatedAt" = ? WHERE "id" = ?`,
-            ...ANNOUNCEMENT_COLUMNS.map((c) => values[c]), nowStr, savedId,
-          )
-        : insertAnnouncement(savedId, values, nowStr),
-      stmt(`DELETE FROM "AnnouncementCategory" WHERE "announcementId" = ?`, savedId),
-      stmt(`DELETE FROM "Attachment" WHERE "announcementId" = ?`, savedId),
-      stmt(`DELETE FROM "AnnouncementImage" WHERE "announcementId" = ?`, savedId),
-      ...childInserts(savedId, categoryIds, d.attachments, images),
-    ]);
-  } catch (e) {
-    console.error("[saveAnnouncement]", e);
-    return fail("儲存失敗，請稍後再試。");
-  }
-
-  if (existing) {
-    await cleanupFiles([existing.coverImage, ...existing.attachments.map((a) => a.fileUrl), ...existing.images.map((i) => i.url)]);
-  }
-  refreshPublic();
-  return { ok: true as const, id: savedId, slug: d.slug, status };
+  return saveAnnouncementCore(id, raw, intent);
 }
 
 export async function duplicateAnnouncement(id: string) {
@@ -608,5 +392,133 @@ export async function deleteMilestone(id: string) {
   await run(`DELETE FROM "Milestone" WHERE "id" = ?`, String(id));
   await cleanupFiles([old.coverImage]);
   refreshPublic();
+  return { ok: true as const };
+}
+
+// ───────────────────────── 社團資訊：幹部、合作單位、資訊來源（僅總管理員） ─────────────────────────
+
+const nullIfEmpty = (v: string) => (v === "" ? null : v);
+
+export async function saveOfficer(id: string | null, raw: unknown) {
+  const { denied } = await guard(true);
+  if (denied) return denied;
+  const parsed = officerSchema.safeParse(raw);
+  if (!parsed.success) return fail(firstZodError(parsed.error));
+  const d = parsed.data;
+  const now = nowIso();
+  if (id) {
+    const old = await first<{ photoUrl: string | null }>(`SELECT "photoUrl" FROM "Officer" WHERE "id" = ?`, String(id));
+    if (!old) return fail("找不到這位幹部，可能已被刪除。");
+    await run(`UPDATE "Officer" SET "role" = ?, "name" = ?, "photoUrl" = ?, "updatedAt" = ? WHERE "id" = ?`, d.role, d.name, nullIfEmpty(d.photoUrl), now, String(id));
+    if (old.photoUrl && old.photoUrl !== d.photoUrl) await cleanupFiles([old.photoUrl]);
+  } else {
+    const last = await first<{ n: number | null }>(`SELECT MAX("sortOrder") AS n FROM "Officer"`);
+    if (((await first<{ n: number }>(`SELECT COUNT(*) AS n FROM "Officer"`))?.n ?? 0) >= 60) return fail("幹部最多 60 位。");
+    await run(
+      `INSERT INTO "Officer" ("id", "role", "name", "photoUrl", "sortOrder", "createdAt", "updatedAt") VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      newId(), d.role, d.name, nullIfEmpty(d.photoUrl), (last?.n ?? 0) + 1, now, now,
+    );
+  }
+  refreshPublic();
+  return { ok: true as const };
+}
+
+export async function deleteOfficer(id: string) {
+  const { denied } = await guard(true);
+  if (denied) return denied;
+  const old = await first<{ photoUrl: string | null }>(`SELECT "photoUrl" FROM "Officer" WHERE "id" = ?`, String(id));
+  if (!old) return fail("找不到這位幹部，可能已被刪除。");
+  await run(`DELETE FROM "Officer" WHERE "id" = ?`, String(id));
+  await cleanupFiles([old.photoUrl]);
+  refreshPublic();
+  return { ok: true as const };
+}
+
+export async function saveOrg(id: string | null, raw: unknown) {
+  const { denied } = await guard(true);
+  if (denied) return denied;
+  const parsed = orgSchema.safeParse(raw);
+  if (!parsed.success) return fail(firstZodError(parsed.error));
+  const d = parsed.data;
+  const now = nowIso();
+  if (id) {
+    const old = await first<{ logoUrl: string | null }>(`SELECT "logoUrl" FROM "Organization" WHERE "id" = ?`, String(id));
+    if (!old) return fail("找不到這個單位，可能已被刪除。");
+    await run(
+      `UPDATE "Organization" SET "name" = ?, "logoUrl" = ?, "linkUrl" = ?, "updatedAt" = ? WHERE "id" = ?`,
+      d.name, nullIfEmpty(d.logoUrl), nullIfEmpty(d.linkUrl), now, String(id),
+    );
+    if (old.logoUrl && old.logoUrl !== d.logoUrl) await cleanupFiles([old.logoUrl]);
+  } else {
+    if (((await first<{ n: number }>(`SELECT COUNT(*) AS n FROM "Organization" WHERE "kind" = ?`, d.kind))?.n ?? 0) >= 60) {
+      return fail("每一類最多 60 個。");
+    }
+    const last = await first<{ n: number | null }>(`SELECT MAX("sortOrder") AS n FROM "Organization" WHERE "kind" = ?`, d.kind);
+    await run(
+      `INSERT INTO "Organization" ("id", "kind", "name", "logoUrl", "linkUrl", "sortOrder", "createdAt", "updatedAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      newId(), d.kind, d.name, nullIfEmpty(d.logoUrl), nullIfEmpty(d.linkUrl), (last?.n ?? 0) + 1, now, now,
+    );
+  }
+  refreshPublic();
+  return { ok: true as const };
+}
+
+export async function deleteOrg(id: string) {
+  const { denied } = await guard(true);
+  if (denied) return denied;
+  const old = await first<{ logoUrl: string | null }>(`SELECT "logoUrl" FROM "Organization" WHERE "id" = ?`, String(id));
+  if (!old) return fail("找不到這個單位，可能已被刪除。");
+  await run(`DELETE FROM "Organization" WHERE "id" = ?`, String(id));
+  await cleanupFiles([old.logoUrl]);
+  refreshPublic();
+  return { ok: true as const };
+}
+
+/** 依照畫面上的順序重新編號（幹部或同一類單位） */
+export async function reorderItems(table: "Officer" | "Organization", ids: string[]) {
+  const { denied } = await guard(true);
+  if (denied) return denied;
+  if (table !== "Officer" && table !== "Organization") return fail("不支援的操作。");
+  if (!Array.isArray(ids) || ids.length > 100) return fail("資料格式不正確。");
+  await batch(ids.map((id, i) => stmt(`UPDATE "${table}" SET "sortOrder" = ? WHERE "id" = ?`, i + 1, String(id))));
+  refreshPublic();
+  return { ok: true as const };
+}
+
+export async function setPlacement(key: "partnersPlacement" | "sourcesPlacement", value: Placement) {
+  const { denied } = await guard(true);
+  if (denied) return denied;
+  if ((key !== "partnersPlacement" && key !== "sourcesPlacement") || !PLACEMENTS.includes(value)) return fail("不支援的設定。");
+  await run(
+    `INSERT INTO "SiteSetting" ("key", "value") VALUES (?, ?) ON CONFLICT ("key") DO UPDATE SET "value" = excluded."value"`,
+    key, value,
+  );
+  refreshPublic();
+  return { ok: true as const };
+}
+
+// ───────────────────────── AI 匯入：API 金鑰（僅總管理員） ─────────────────────────
+
+export async function createAiToken(raw: { name: string; canPublish: boolean; days: number }) {
+  const { user, denied } = await guard(true);
+  if (denied) return denied;
+  const name = String(raw?.name ?? "").trim().slice(0, 40);
+  const days = [7, 30, 90, 365].includes(Number(raw?.days)) ? Number(raw.days) : 30;
+  if (!name) return fail("請幫這把金鑰取個名字，例如「ChatGPT 上架用」。");
+  const active = await first<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM "ApiToken" WHERE "revokedAt" IS NULL AND "expiresAt" > ?`, nowIso(),
+  );
+  if ((active?.n ?? 0) >= 10) return fail("有效的金鑰最多 10 把，請先停用不用的金鑰。");
+  const token = await createApiToken(user.id, name, Boolean(raw?.canPublish), days);
+  revalidatePath("/admin/ai");
+  return { ok: true as const, token };
+}
+
+export async function revokeAiToken(id: string) {
+  const { denied } = await guard(true);
+  if (denied) return denied;
+  const changed = await run(`UPDATE "ApiToken" SET "revokedAt" = ? WHERE "id" = ? AND "revokedAt" IS NULL`, nowIso(), String(id));
+  if (!changed) return fail("找不到這把金鑰，或已經停用。");
+  revalidatePath("/admin/ai");
   return { ok: true as const };
 }
