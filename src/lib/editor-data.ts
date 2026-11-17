@@ -2,6 +2,7 @@ import "server-only";
 import { listCategories } from "./announcements";
 import type { AnnouncementDetail } from "./types";
 import { toInputValue } from "./format";
+import { defaultSurveyQuestions, resolveSurveyQuestions } from "./survey";
 import type { EditorCategory, EditorInitial } from "@/components/admin/AnnouncementEditor";
 
 export async function getEditorCategories(): Promise<EditorCategory[]> {
@@ -17,7 +18,7 @@ export function emptyInitial(slug: string): EditorInitial {
     targetAudience: "", registrationUrl: "", registrationMethod: "",
     contactName: "", contactEmail: "", contactPhone: "", contactLine: "", contactOther: "",
     invitationText: "", customShareText: "", youtubeUrl: "", prize: "",
-    surveyEnabled: false, surveyQuestion: "", surveyOptions: "", isFeatured: false, isPinned: false, scheduledAt: "",
+    surveyEnabled: false, surveyQuestions: defaultSurveyQuestions(), isFeatured: false, isPinned: false, scheduledAt: "",
     attachments: [], images: [],
     status: "DRAFT", publishedAt: null, updatedAt: null,
   };
@@ -55,8 +56,8 @@ export function toInitial(a: AnnouncementDetail): EditorInitial {
     youtubeUrl: a.youtubeUrl ?? "",
     prize: a.prize ?? "",
     surveyEnabled: a.surveyEnabled,
-    surveyQuestion: a.surveyQuestion ?? "",
-    surveyOptions: a.surveyOptions ?? "",
+    // 還沒開過問卷的公告，打開時先帶入預設題目
+    surveyQuestions: a.surveyEnabled || a.surveyQuestions ? resolveSurveyQuestions(a) : defaultSurveyQuestions(),
     isFeatured: a.isFeatured,
     isPinned: a.isPinned,
     scheduledAt: toInputValue(a.scheduledAt),

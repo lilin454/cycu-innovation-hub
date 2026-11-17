@@ -9,6 +9,7 @@ import type { StatusKey } from "@/lib/constants";
 import { fromInputValue } from "@/lib/format";
 import { deleteObject, keyFromUrl } from "@/lib/storage";
 import { SETTING_DEFAULTS, type SettingKey } from "@/lib/settings";
+import { normalizeQuestions, resolveSurveyQuestions } from "@/lib/survey";
 import {
   announcementSchema,
   categorySchema,
@@ -96,7 +97,7 @@ const ANNOUNCEMENT_COLUMNS = [
   "slug", "title", "subtitle", "summary", "content", "coverImage", "feeType", "feeAmount", "feeDescription", "prize",
   "startAt", "endAt", "registrationDeadline", "location", "organizer", "coOrganizer", "targetAudience",
   "registrationUrl", "registrationMethod", "youtubeUrl", "contactName", "contactEmail", "contactPhone", "contactLine",
-  "contactOther", "invitationText", "customShareText", "surveyEnabled", "surveyQuestion", "surveyOptions", "status", "isFeatured", "isPinned", "scheduledAt", "publishedAt",
+  "contactOther", "invitationText", "customShareText", "surveyEnabled", "surveyQuestions", "status", "isFeatured", "isPinned", "scheduledAt", "publishedAt",
 ] as const;
 type Column = (typeof ANNOUNCEMENT_COLUMNS)[number];
 type ColumnValues = Record<Column, string | number | null>;
@@ -146,6 +147,7 @@ export async function saveAnnouncement(id: string | null, raw: unknown, intent: 
   const registrationDeadline = fromInputValue(d.registrationDeadline);
   let scheduledAt = fromInputValue(d.scheduledAt);
   if (startAt && endAt && endAt < startAt) return fail("活動結束時間不可早於開始時間。");
+  if (d.surveyEnabled && !d.surveyQuestions.length) return fail("問卷至少要有一個題目。");
 
   const slugOwner = await first<{ id: string }>(`SELECT "id" FROM "Announcement" WHERE "slug" = ?`, d.slug);
   if (slugOwner && slugOwner.id !== id) return fail("這個網址代稱已被其他公告使用，請換一個。");
@@ -242,8 +244,8 @@ export async function saveAnnouncement(id: string | null, raw: unknown, intent: 
     invitationText: nullable(d.invitationText),
     customShareText: nullable(d.customShareText),
     surveyEnabled: d.surveyEnabled ? 1 : 0,
-    surveyQuestion: nullable(d.surveyQuestion),
-    surveyOptions: nullable(d.surveyOptions),
+    // 題目存成 JSON；舊版的 surveyQuestion / surveyOptions 欄位保留不動
+    surveyQuestions: d.surveyQuestions.length ? JSON.stringify(normalizeQuestions(d.surveyQuestions)) : null,
     status,
     isFeatured: d.isFeatured ? 1 : 0,
     isPinned: d.isPinned ? 1 : 0,
@@ -315,8 +317,7 @@ export async function duplicateAnnouncement(id: string) {
     invitationText: src.invitationText,
     customShareText: src.customShareText,
     surveyEnabled: src.surveyEnabled ? 1 : 0,
-    surveyQuestion: src.surveyQuestion,
-    surveyOptions: src.surveyOptions,
+    surveyQuestions: src.surveyEnabled || src.surveyQuestions ? JSON.stringify(resolveSurveyQuestions(src)) : null,
     // 複製出來的一律是草稿：不沿用發布狀態、排程、置頂與精選
     status: "DRAFT",
     isFeatured: 0,

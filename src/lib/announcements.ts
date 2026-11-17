@@ -171,12 +171,50 @@ export async function getFeatured(): Promise<AnnouncementCard[]> {
   return withCategories(rows.map(mapAnnouncement));
 }
 
-export async function getNextUp(): Promise<Announcement | null> {
-  const row = await first<AnnouncementRow>(
+/** 台北時間的日期字串（YYYY-MM-DD） */
+const taipeiDay = (iso: string) => new Date(new Date(iso).getTime() + 8 * 3600_000).toISOString().slice(0, 10);
+
+/**
+ * 首頁「下一場活動」。
+ * pinnedId 是總管理員在設定裡指定的公告；它已下架或已結束時，自動改回時間最近的一場。
+ * sameDay 是同一天（台北時間）開始的其他活動，讓首頁可以列出來。
+ */
+export async function getNextUp(pinnedId = ""): Promise<{ main: Announcement | null; sameDay: Announcement[] }> {
+  const now = nowIso();
+  let row: AnnouncementRow | null = null;
+  if (/^[a-z0-9]{1,40}$/i.test(pinnedId)) {
+    row = await first<AnnouncementRow>(
+      `SELECT * FROM "Announcement" WHERE "id" = ? AND "status" = 'PUBLISHED' AND "startAt" IS NOT NULL
+         AND ("startAt" >= ? OR COALESCE("endAt", '') >= ?)`,
+      pinnedId, now, now,
+    );
+  }
+  row ??= await first<AnnouncementRow>(
     `SELECT * FROM "Announcement" WHERE "status" = 'PUBLISHED' AND "startAt" >= ? ORDER BY "startAt" ASC LIMIT 1`,
-    nowIso(),
+    now,
   );
-  return row ? mapAnnouncement(row) : null;
+  if (!row?.startAt) return { main: row ? mapAnnouncement(row) : null, sameDay: [] };
+  const day = taipeiDay(row.startAt);
+  // 台北當天 00:00 ～ 隔天 00:00，換算回 UTC
+  const from = new Date(`${day}T00:00:00+08:00`).toISOString();
+  const to = new Date(new Date(from).getTime() + 86400_000).toISOString();
+  const others = await all<AnnouncementRow>(
+    `SELECT * FROM "Announcement" WHERE "status" = 'PUBLISHED' AND "id" != ? AND "startAt" >= ? AND "startAt" < ?
+     ORDER BY "startAt" ASC LIMIT 6`,
+    row.id, from, to,
+  );
+  return { main: mapAnnouncement(row), sameDay: others.map(mapAnnouncement) };
+}
+
+/** 後台設定用：尚未開始或進行中的已發布活動 */
+export async function listUpcomingForPicker(): Promise<{ id: string; startAt: string; title: string }[]> {
+  const now = nowIso();
+  return all<{ id: string; startAt: string; title: string }>(
+    `SELECT "id", "startAt", "title" FROM "Announcement"
+     WHERE "status" = 'PUBLISHED' AND "startAt" IS NOT NULL AND ("startAt" >= ? OR COALESCE("endAt", '') >= ?)
+     ORDER BY "startAt" ASC LIMIT 60`,
+    now, now,
+  );
 }
 
 export async function getPublicStats() {

@@ -22,6 +22,9 @@ export const SETTING_DEFAULTS = {
   cycuInfo: "中原大學｜320 桃園市中壢區中北路 200 號",
   footerText: "創意不該只留在腦中。來現場，和我們一起把它做出來。",
   presidentName: "林立",
+  vicePresidentName: "楊士霆",
+  // 首頁「下一場活動」：空字串＝自動選最近的一場；填公告 id＝由總管理員指定
+  nextUpId: "",
   // 板塊顯示開關："1" 顯示、"0" 隱藏
   showNextUp: "1",
   showStats: "1",

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/auth";
 import { getSettings } from "@/lib/settings";
+import { listUpcomingForPicker } from "@/lib/announcements";
+import { formatDateTime } from "@/lib/format";
 import { PasswordForm, SettingsForm } from "@/components/admin/SettingsForm";
 
 export const metadata: Metadata = { title: "系統設定" };
@@ -18,13 +20,14 @@ export default async function SettingsPage() {
       </div>
     );
   }
-  const settings = await getSettings();
+  const [settings, upcoming] = await Promise.all([getSettings(), listUpcomingForPicker()]);
+  const options = upcoming.map((u) => ({ id: u.id, label: `${formatDateTime(u.startAt)}｜${u.title}` }));
   return (
     <div className="mx-auto max-w-3xl">
       <p className="eyebrow text-flame-dark">Settings</p>
       <h1 className="mt-1 text-3xl font-black">系統設定</h1>
       <p className="mt-2 text-sm text-muted">這裡的內容會顯示在前台的導覽列、首頁、關於頁與頁尾。</p>
-      <SettingsForm initial={settings} />
+      <SettingsForm initial={settings} upcoming={options} />
       <PasswordForm account={user.account} />
     </div>
   );

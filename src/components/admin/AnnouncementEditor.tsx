@@ -17,6 +17,7 @@ import { buildShareText, SHARE_VARIABLES, shareUrl } from "@/lib/share";
 import type { AnnouncementInput, SaveIntent } from "@/lib/validation";
 import { copyWithToast, toast } from "@/components/Toaster";
 import { StatusBadge } from "./StatusBadge";
+import { SurveyBuilder } from "./SurveyBuilder";
 import { uploadFile } from "./upload";
 
 export type EditorCategory = { id: string; kind: "SOURCE" | "EVENT_TYPE"; name: string; color: string };
@@ -611,23 +612,16 @@ export function AnnouncementEditor({
           </Section>
 
           {/* G 活動問卷 */}
-          <Section id="survey" code="G" title="活動問卷（選填）" hint="例如詢問是否出席">
+          <Section id="survey" code="G" title="活動問卷（選填）" hint="例如報名資料、是否出席、滿意度">
             <label className="flex cursor-pointer items-start gap-3 border-2 border-line bg-white p-3 has-[:checked]:border-ink has-[:checked]:bg-sun-soft">
               <input type="checkbox" className="mt-1 h-5 w-5 accent-[#0b2a4a]" checked={form.surveyEnabled} onChange={(e) => set("surveyEnabled", e.target.checked)} />
               <span>
-                <span className="block font-bold">在活動頁面放一個簡易問卷</span>
-                <span className="text-xs text-muted">訪客直接在網頁上填姓名、選一個答案就完成，不用另外開 Google 表單。回覆只有管理員看得到。</span>
+                <span className="block font-bold">在活動頁面放一份問卷</span>
+                <span className="text-xs text-muted">訪客直接在網頁上作答，不用另外開 Google 表單。可以用簡答、詳答、單選、多選、五點量表；回覆只有管理員看得到。</span>
               </span>
             </label>
             {form.surveyEnabled && (
-              <>
-                <Field label="問題" hint="留空會使用「你會出席這個活動嗎？」">
-                  <input className="input" maxLength={120} placeholder="你會出席這個活動嗎？" {...text("surveyQuestion")} />
-                </Field>
-                <Field label="選項（一行一個，2 到 6 個）" hint="留空會使用：會出席／不會出席／還不確定">
-                  <textarea className="input" rows={4} maxLength={400} placeholder={"會出席\n不會出席\n還不確定"} {...text("surveyOptions")} />
-                </Field>
-              </>
+              <SurveyBuilder value={form.surveyQuestions} onChange={(v) => set("surveyQuestions", v)} />
             )}
             {id ? (
               <p className="text-sm">

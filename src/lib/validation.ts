@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { FEE_TYPES } from "./constants";
 import { youtubeId } from "./youtube";
+import { SURVEY_MAX_OPTIONS, SURVEY_MAX_QUESTIONS, SURVEY_TYPES } from "./survey";
 
 const text = (max: number) => z.string().trim().max(max, `不可超過 ${max} 字`);
 const optionalUrl = z
@@ -54,8 +55,25 @@ export const announcementSchema = z.object({
   customShareText: text(2000),
   prize: text(60),
   surveyEnabled: z.boolean(),
-  surveyQuestion: text(120),
-  surveyOptions: text(400),
+  surveyQuestions: z
+    .array(
+      z
+        .object({
+          id: z.string().regex(/^[a-z0-9_]{1,40}$/i, "題目代號不正確"),
+          type: z.enum(SURVEY_TYPES),
+          title: text(120).min(1, "問卷的每一題都要填寫題目"),
+          required: z.boolean(),
+          options: z.array(text(60)).max(SURVEY_MAX_OPTIONS, `每題最多 ${SURVEY_MAX_OPTIONS} 個選項`),
+          scaleMin: text(30),
+          scaleMax: text(30),
+          role: z.enum(["name", "studentId"]).optional(),
+        })
+        .refine(
+          (q) => !(q.type === "single" || q.type === "multi") || new Set(q.options.filter((o) => o.trim())).size >= 2,
+          "單選或多選題至少要有 2 個不重複的選項",
+        ),
+    )
+    .max(SURVEY_MAX_QUESTIONS, `問卷最多 ${SURVEY_MAX_QUESTIONS} 題`),
   youtubeUrl: z
     .string()
     .trim()
@@ -112,6 +130,8 @@ export const settingsSchema = z.object({
   cycuInfo: text(200),
   footerText: text(200),
   presidentName: text(40),
+  vicePresidentName: text(40),
+  nextUpId: z.string().regex(/^[a-z0-9]{0,40}$/i, "下一場活動的設定不正確"),
   showNextUp: flag,
   showStats: flag,
   showFeatured: flag,

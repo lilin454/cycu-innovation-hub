@@ -50,6 +50,7 @@ export type Announcement = {
   surveyEnabled: boolean;
   surveyQuestion: string | null;
   surveyOptions: string | null;
+  surveyQuestions: string | null; // 新版問卷題目（JSON）
   status: StatusKey;
   isFeatured: boolean;
   isPinned: boolean;

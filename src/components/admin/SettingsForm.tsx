@@ -21,7 +21,7 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
   );
 }
 
-export function SettingsForm({ initial }: { initial: Values }) {
+export function SettingsForm({ initial, upcoming }: { initial: Values; upcoming: { id: string; label: string }[] }) {
   const router = useRouter();
   const [v, setV] = useState<Values>(initial);
   const [pending, start] = useTransition();
@@ -116,6 +116,27 @@ export function SettingsForm({ initial }: { initial: Values }) {
             <Row label="首頁簡介"><textarea className="input" rows={3} maxLength={300} {...bind("heroIntro")} /></Row>
             <Row label="社長" hint="顯示在「關於創創社」頁面，留空則不顯示。">
               <input className="input max-w-xs" maxLength={40} {...bind("presidentName")} />
+            </Row>
+            <Row label="副社長" hint="顯示在「關於創創社」頁面，留空則不顯示。">
+              <input className="input max-w-xs" maxLength={40} {...bind("vicePresidentName")} />
+            </Row>
+            <Row
+              label="首頁｜下一場活動要顯示哪一場"
+              hint="預設自動顯示時間最近的一場。同一天有好幾場時，可以在這裡指定要放哪一場；指定的活動結束後會自動改回最近的一場。"
+            >
+              <select
+                className="input"
+                value={v.nextUpId ?? ""}
+                onChange={(e) => setV((p) => ({ ...p, nextUpId: e.target.value }))}
+              >
+                <option value="">自動（時間最近的一場）</option>
+                {v.nextUpId && !upcoming.some((u) => u.id === v.nextUpId) && (
+                  <option value={v.nextUpId}>（先前指定的活動已結束或下架，目前會自動顯示）</option>
+                )}
+                {upcoming.map((u) => (
+                  <option key={u.id} value={u.id}>{u.label}</option>
+                ))}
+              </select>
             </Row>
             <Row label="社團簡介（關於頁）" hint="可以分段，每一行會成為一個段落。">
               <textarea className="input" rows={6} maxLength={2000} {...bind("aboutText")} />

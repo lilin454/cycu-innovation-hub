@@ -24,6 +24,7 @@ export default async function AboutPage() {
   const s = await getSettings();
   if (s.showAbout === "0") notFound();
   const president = s.presidentName.trim();
+  const vicePresident = s.vicePresidentName.trim();
 
   return (
     <div className="wrap pt-10 md:pt-14">
@@ -46,11 +47,15 @@ export default async function AboutPage() {
             <p key={i}>{p}</p>
           ))}
 
-          {president && (
-            <dl className="inline-flex items-stretch border-2 border-ink bg-white text-base leading-none">
-              <dt className="flex items-center bg-ink px-4 py-3 font-bold text-sun">社長</dt>
-              <dd className="flex items-center px-5 py-3 text-xl font-black">{president}</dd>
-            </dl>
+          {(president || vicePresident) && (
+            <div className="flex flex-wrap gap-3">
+              {[["社長", president], ["副社長", vicePresident]].filter(([, n]) => n).map(([role, n]) => (
+                <dl key={role} className="inline-flex items-stretch border-2 border-ink bg-white text-base leading-none">
+                  <dt className="flex items-center bg-ink px-4 py-3 font-bold text-sun">{role}</dt>
+                  <dd className="flex items-center px-5 py-3 text-xl font-black">{n}</dd>
+                </dl>
+              ))}
+            </div>
           )}
 
           <div className="flex flex-wrap gap-3 pt-2">

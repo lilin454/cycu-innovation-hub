@@ -22,12 +22,12 @@ type Props = { searchParams: Promise<Record<string, string | string[] | undefine
 export default async function HomePage({ searchParams }: Props) {
   const f = parseFilters(await searchParams);
   const filtering = hasActiveFilters(f) || f.page > 1 || f.sort !== "latest";
-  const [s, list, categories, featured, nextUp, stats, records] = await Promise.all([
-    getSettings(),
+  const s = await getSettings();
+  const [list, categories, featured, { main: nextUp, sameDay }, stats, records] = await Promise.all([
     listPublic(f),
     getCategoriesWithCounts(),
     filtering ? Promise.resolve([]) : getFeatured(),
-    getNextUp(),
+    getNextUp(s.nextUpId),
     getPublicStats(),
     filtering ? Promise.resolve([]) : listPublicMilestones({ kind: null, subject: null }, 3),
   ]);
@@ -39,7 +39,7 @@ export default async function HomePage({ searchParams }: Props) {
     <>
       {/* ── Hero：左側標語、右側「下一場活動」──────────────── */}
       <section className="border-b-2 border-ink">
-        <div className="wrap grid lg:grid-cols-12">
+        <div className="wrap grid grid-cols-[minmax(0,1fr)] lg:grid-cols-12">
           <div className={on("showNextUp") ? "py-10 md:py-14 lg:col-span-7 lg:border-r-2 lg:border-ink lg:py-16 lg:pr-12" : "py-10 md:py-14 lg:col-span-12 lg:py-16"}>
             <p className="eyebrow flex items-center gap-3 text-[0.68rem] text-navy">
               <span className="inline-block h-2.5 w-2.5 bg-flame" aria-hidden />
@@ -63,7 +63,8 @@ export default async function HomePage({ searchParams }: Props) {
           {on("showNextUp") && (
           <div className="-mx-5 bg-navy text-paper md:-mx-10 lg:col-span-5 lg:mx-0 lg:-mr-10">
             {nextUp && next ? (
-              <Link href={`/a/${nextUp.slug}`} className="group flex h-full flex-col justify-between gap-8 p-6 md:p-10">
+              <div className="flex h-full flex-col">
+              <Link href={`/a/${nextUp.slug}`} className="group flex flex-1 flex-col justify-between gap-8 p-6 md:p-10">
                 <p className="eyebrow flex items-center justify-between text-[0.68rem] text-sun">
                   <span>Next up・下一場活動</span>
                   <span aria-hidden className="transition-transform group-hover:translate-x-1">→</span>
@@ -83,6 +84,23 @@ export default async function HomePage({ searchParams }: Props) {
                   {nextUp.location && <p className="mt-2 text-sm text-paper/75">{nextUp.location}</p>}
                 </div>
               </Link>
+              {sameDay.length > 0 && (
+                <div className="border-t border-paper/25 px-6 pb-6 pt-4 md:px-10 md:pb-8">
+                  <p className="eyebrow text-[0.62rem] text-sun">同一天還有 {sameDay.length} 場</p>
+                  <ul className="mt-2 space-y-1.5">
+                    {sameDay.map((o) => {
+                      const p = dateParts(o.startAt);
+                      return (
+                        <li key={o.id} className="flex min-w-0 gap-3 text-sm">
+                          {p && <span className="flex-none font-display font-bold text-paper/60">{p.hh}:{p.mm}</span>}
+                          <Link href={`/a/${o.slug}`} className="min-w-0 truncate font-bold hover:text-sun hover:underline">{o.title}</Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+              </div>
             ) : (
               <div className="flex h-full flex-col justify-between gap-8 p-6 md:p-10">
                 <p className="eyebrow text-[0.68rem] text-sun">Next up・下一場活動</p>

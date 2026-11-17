@@ -87,13 +87,14 @@ export default async function RecordsPage({ searchParams }: Props) {
         </div>
       ) : (
         [...years.entries()].map(([year, list]) => (
-          <section key={year} aria-labelledby={`y-${year}`} className="mt-12 grid gap-x-10 gap-y-4 md:grid-cols-[9rem_minmax(0,1fr)]">
-            <h2 id={`y-${year}`} className="font-display text-6xl font-black leading-none text-sun [-webkit-text-stroke:2px_var(--color-ink)] md:sticky md:top-24 md:self-start md:text-7xl">
+          <section key={year} aria-labelledby={`y-${year}`} className="mt-12 grid gap-x-10 gap-y-4 lg:grid-cols-[auto_minmax(0,1fr)]">
+            {/* 年份欄寬跟著字的實際寬度走（auto），不會再壓到右邊的內容 */}
+            <h2 id={`y-${year}`} className="whitespace-nowrap font-display text-6xl font-black leading-none text-sun [-webkit-text-stroke:2px_var(--color-ink)] lg:sticky lg:top-24 lg:self-start lg:text-7xl">
               {year}
             </h2>
             <ol className="border-t-2 border-ink">
               {list.map((it) => (
-                <li key={it.id} className="grid gap-4 border-b-2 border-ink py-6 sm:grid-cols-[minmax(0,1fr)_12rem] sm:gap-8">
+                <li key={it.id} className="grid gap-4 border-b-2 border-ink py-6 sm:grid-cols-[minmax(0,1fr)_11rem] sm:gap-6 xl:grid-cols-[minmax(0,1fr)_14rem] xl:gap-8">
                   <div className="min-w-0">
                     <p className="flex flex-wrap items-center gap-2 text-sm">
                       <span className="font-display font-black">

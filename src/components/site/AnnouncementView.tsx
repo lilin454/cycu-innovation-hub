@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { AnnouncementDetail } from "@/lib/announcements";
 import { formatBytes, formatDate, formatDateTime, formatFee, formatRange } from "@/lib/format";
-import { DEFAULT_SURVEY_QUESTION, parseSurveyOptions } from "@/lib/survey";
+import { resolveSurveyQuestions } from "@/lib/survey";
 import { youtubeEmbedUrl, youtubeId } from "@/lib/youtube";
 import { Content } from "./Content";
 import { Cover } from "./Cover";
@@ -90,8 +90,7 @@ export function AnnouncementView({
           {a.surveyEnabled && (
             <SurveyForm
               announcementId={a.id}
-              question={a.surveyQuestion?.trim() || DEFAULT_SURVEY_QUESTION}
-              options={parseSurveyOptions(a.surveyOptions)}
+              questions={resolveSurveyQuestions(a)}
               preview={preview}
             />
           )}
