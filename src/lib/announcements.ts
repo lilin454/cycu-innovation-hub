@@ -259,8 +259,10 @@ export async function getCalendarMonth(year: number, month: number): Promise<Ann
   const start = new Date(Date.UTC(year, month - 1, 1) - 8 * 3600_000).toISOString();
   const end = new Date(Date.UTC(year, month, 1) - 8 * 3600_000).toISOString();
   const rows = await all<AnnouncementRow>(
-    `SELECT * FROM "Announcement" WHERE "status" = 'PUBLISHED' AND "startAt" IS NOT NULL
-       AND "startAt" < ? AND COALESCE("endAt", "startAt") >= ? ORDER BY "startAt" ASC LIMIT 300`,
+    // 活動結束後被系統自動下架的公告仍留在行事曆上（手動下架、封存的不顯示）
+    `SELECT * FROM "Announcement"
+     WHERE ("status" = 'PUBLISHED' OR ("status" = 'UNPUBLISHED' AND "autoUnpublishedAt" IS NOT NULL))
+       AND "startAt" IS NOT NULL AND "startAt" < ? AND COALESCE("endAt", "startAt") >= ? ORDER BY "startAt" ASC LIMIT 300`,
     end,
     start,
   );

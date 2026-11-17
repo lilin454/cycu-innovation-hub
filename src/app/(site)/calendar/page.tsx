@@ -105,9 +105,15 @@ export default async function CalendarPage({ searchParams }: Props) {
                         <ul className="mt-1 hidden space-y-1 md:block">
                           {list.slice(0, 3).map((e) => (
                             <li key={e.id}>
-                              <Link href={`/a/${e.slug}`} title={e.title} className="block truncate bg-ink px-1.5 py-0.5 text-[0.72rem] font-bold leading-snug text-paper hover:bg-flame-dark">
-                                {e.title}
-                              </Link>
+                              {e.status === "PUBLISHED" ? (
+                                <Link href={`/a/${e.slug}`} title={e.title} className="block truncate bg-ink px-1.5 py-0.5 text-[0.72rem] font-bold leading-snug text-paper hover:bg-flame-dark">
+                                  {e.title}
+                                </Link>
+                              ) : (
+                                <span title={`${e.title}（已結束）`} className="block truncate bg-paper-2 px-1.5 py-0.5 text-[0.72rem] font-bold leading-snug text-muted">
+                                  {e.title}
+                                </span>
+                              )}
                             </li>
                           ))}
                           {list.length > 3 && (
@@ -160,9 +166,14 @@ export default async function CalendarPage({ searchParams }: Props) {
                             <span className="font-display font-black">{time}</span>
                             <span className={`tag ${e.feeType === "FREE" ? "tag-free" : "tag-paid"}`}>{feeBadge(e.feeType, e.feeAmount)}</span>
                             {e.prize && <span className="tag tag-prize">獎金｜{e.prize}</span>}
+                            {e.status !== "PUBLISHED" && <span className="tag tag-custom">已結束</span>}
                           </p>
                           <h3 className="mt-1 text-lg font-black leading-snug md:text-xl">
-                            <Link href={`/a/${e.slug}`} className="hover:text-flame-dark hover:underline">{e.title}</Link>
+                            {e.status === "PUBLISHED" ? (
+                              <Link href={`/a/${e.slug}`} className="hover:text-flame-dark hover:underline">{e.title}</Link>
+                            ) : (
+                              <span className="text-muted">{e.title}</span>
+                            )}
                           </h3>
                           {e.location && <p className="text-sm text-muted">{e.location}</p>}
                         </li>

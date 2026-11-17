@@ -99,7 +99,7 @@ const ANNOUNCEMENT_COLUMNS = [
   "startAt", "endAt", "registrationDeadline", "location", "organizer", "coOrganizer", "targetAudience",
   "registrationUrl", "registrationMethod", "youtubeUrl", "contactName", "contactEmail", "contactPhone", "contactLine",
   "contactOther", "invitationText", "customShareText", "surveyEnabled", "surveyQuestions", "status", "isFeatured", "isPinned", "scheduledAt", "publishedAt",
-  "unpublishMode", "unpublishAt",
+  "unpublishMode", "unpublishAt", "autoUnpublishedAt",
 ] as const;
 type Column = (typeof ANNOUNCEMENT_COLUMNS)[number];
 type ColumnValues = Record<Column, string | number | null>;
@@ -269,6 +269,8 @@ export async function saveAnnouncement(id: string | null, raw: unknown, intent: 
     publishedAt: iso(publishedAt),
     unpublishMode: d.unpublishMode,
     unpublishAt: iso(unpublishAt),
+    // 只有「維持自動下架狀態、單純儲存內容」時保留標記；其他狀態變更都視為人工處理（行事曆依此判斷）
+    autoUnpublishedAt: status === "UNPUBLISHED" && intent === "save" ? iso(existing?.autoUnpublishedAt ?? null) : null,
   };
 
   const savedId = existing?.id ?? newId();
@@ -345,6 +347,7 @@ export async function duplicateAnnouncement(id: string) {
     // 指定的下架時間不沿用，其餘下架方式照舊
     unpublishMode: src.unpublishMode === "AT" ? "DEFAULT" : src.unpublishMode,
     unpublishAt: null,
+    autoUnpublishedAt: null,
   };
   const copyId = newId();
   await batch([
@@ -365,6 +368,7 @@ export async function setAnnouncementStatus(id: string, status: "PUBLISHED" | "U
   const changed = await run(
     `UPDATE "Announcement" SET "status" = ?, "scheduledAt" = NULL,
        "publishedAt" = CASE WHEN ? = 'PUBLISHED' THEN COALESCE("publishedAt", ?) ELSE "publishedAt" END, "updatedAt" = ?,
+       "autoUnpublishedAt" = NULL,
        "unpublishMode" = CASE WHEN ? = 'PUBLISHED' AND ${SHOULD_UNPUBLISH} THEN 'NEVER' ELSE "unpublishMode" END,
        "unpublishAt" = CASE WHEN ? = 'PUBLISHED' AND "unpublishMode" = 'AT' AND "unpublishAt" <= ? THEN NULL ELSE "unpublishAt" END
      WHERE "id" = ?`,
