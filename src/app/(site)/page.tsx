@@ -16,6 +16,7 @@ import { AnnouncementRow, typeLabel } from "@/components/site/AnnouncementRow";
 import { Cover } from "@/components/site/Cover";
 import { EmptyState, Filters, Pagination } from "@/components/site/Filters";
 import { TagList } from "@/components/site/Tags";
+import { InstallButton } from "@/components/site/InstallButton";
 import type { Metadata } from "next";
 
 // 首頁的正式網址固定是 /，帶篩選參數的網址不會被 Google 當成重複頁面
@@ -91,6 +92,7 @@ export default async function HomePage({ searchParams }: Props) {
               {s.showCalendar !== "0" && <Link href="/calendar" className="link-arrow">看行事曆 <span aria-hidden>→</span></Link>}
               <Link href="/announcements?fee=free" className="link-arrow">只看免費活動 <span aria-hidden>→</span></Link>
             </div>
+            <div className="mt-6 md:hidden"><InstallButton /></div>
           </div>
 
           {on("showNextUp") && (

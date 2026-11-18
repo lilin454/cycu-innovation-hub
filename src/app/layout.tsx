@@ -29,7 +29,9 @@ export async function generateMetadata(): Promise<Metadata> {
       description,
       images: [{ url: s.logoUrl || "/brand/logo.jpg" }],
     },
-    icons: { icon: s.logoUrl || "/brand/logo.jpg" },
+    icons: { icon: s.logoUrl || "/brand/logo.jpg", apple: "/icons/apple-touch-icon.png" },
+    // iPhone 加入主畫面後的名稱與外觀
+    appleWebApp: { capable: true, title: "創創社", statusBarStyle: "default" },
     ...(s.googleSiteVerification ? { verification: { google: s.googleSiteVerification } } : {}),
   };
 }
