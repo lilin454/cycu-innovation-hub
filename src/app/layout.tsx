@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { aliasList, getBaseUrl, getSettings } from "@/lib/settings";
 import { Toaster } from "@/components/Toaster";
+import { Lightbox } from "@/components/site/Lightbox";
 import "./globals.css";
 
 // 字型由瀏覽器在執行時向 Google Fonts 載入（不在建置階段下載，離線也能建置）；
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         {children}
         <Toaster />
+        <Lightbox />
       </body>
     </html>
   );

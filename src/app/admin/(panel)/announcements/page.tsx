@@ -5,10 +5,10 @@ import { ADMIN_SORTS, listAdmin, listCategories, parseAdminFilters } from "@/lib
 import { FEE_LABEL, FEE_TYPES, STATUS_LABEL, STATUSES } from "@/lib/constants";
 import { feeBadge, formatDateTime, formatRange } from "@/lib/format";
 import { getBaseUrl } from "@/lib/settings";
-import { buildShareText, shareUrl } from "@/lib/share";
+import { buildDigestBlock, buildShareText, shareUrl } from "@/lib/share";
 import { RowActions } from "@/components/admin/RowActions";
 import { StatusBadge } from "@/components/admin/StatusBadge";
-import { BulkProvider, RowCheck, SelectAll } from "@/components/admin/BulkSelect";
+import { BulkProvider, BulkRow, RowCheck, SelectAll } from "@/components/admin/BulkSelect";
 
 export const metadata: Metadata = { title: "公告管理" };
 
@@ -97,7 +97,13 @@ export default async function AdminAnnouncementsPage({ searchParams }: { searchP
           <p className="mt-1 text-sm text-muted">{filtered ? "調整篩選條件後再試一次。" : "按右上角「新增公告」建立第一則活動資訊。"}</p>
         </div>
       ) : (
-          <BulkProvider ids={items.map((a) => a.id)} isOwner={me.role === "OWNER"}>
+          <BulkProvider
+            ids={items.map((a) => a.id)}
+            isOwner={me.role === "OWNER"}
+            baseUrl={base}
+            digests={Object.fromEntries(items.map((a) => [a.id, { start: a.startAt ? a.startAt.getTime() : null, text: buildDigestBlock(a, base) }]))}
+          >
+          <p className="mt-3 hidden text-xs text-muted md:block">小技巧：按住 Shift 點選可以一次選一整段，按住 Ctrl（Mac 用 ⌘）點列可以加選。選好後可以「複製文案」整理成近期活動清單。</p>
         <div className="panel mt-3">
           <div className="flex items-center gap-4 border-b-2 border-ink bg-paper-2 px-4 py-2 text-xs font-black xl:grid xl:grid-cols-[1.5rem_minmax(0,2.2fr)_minmax(0,1.3fr)_6.5rem_minmax(0,1.2fr)_5.5rem_9.5rem]">
             <SelectAll />
@@ -112,7 +118,7 @@ export default async function AdminAnnouncementsPage({ searchParams }: { searchP
             {items.map((a) => {
               const url = shareUrl(base, a.slug);
               return (
-                <li key={a.id} className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-x-4 gap-y-2 border-b border-line px-4 py-3 last:border-b-0 has-[input:checked]:bg-sun-soft/60 xl:grid-cols-[1.5rem_minmax(0,2.2fr)_minmax(0,1.3fr)_6.5rem_minmax(0,1.2fr)_5.5rem_9.5rem] xl:items-center">
+                <BulkRow key={a.id} id={a.id} className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-x-4 gap-y-2 border-b border-line px-4 py-3 last:border-b-0 has-[input:checked]:bg-sun-soft/60 xl:grid-cols-[1.5rem_minmax(0,2.2fr)_minmax(0,1.3fr)_6.5rem_minmax(0,1.2fr)_5.5rem_9.5rem] xl:items-center">
                   <div className="row-span-6 pt-0.5 xl:row-span-1 xl:pt-0"><RowCheck id={a.id} title={a.title} /></div>
                   <div className="min-w-0">
                     <Link href={`/admin/announcements/${a.id}`} className="font-bold leading-snug hover:underline">
@@ -152,7 +158,7 @@ export default async function AdminAnnouncementsPage({ searchParams }: { searchP
                     canDelete={me.role === "OWNER"}
                     hasSurvey={a.surveyEnabled}
                   />
-                </li>
+                </BulkRow>
               );
             })}
           </ul>

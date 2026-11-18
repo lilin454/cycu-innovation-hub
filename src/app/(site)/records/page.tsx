@@ -131,7 +131,7 @@ export default async function RecordsPage({ searchParams }: Props) {
                     )}
                   </div>
                   {it.coverImage && (
-                    <a href={it.coverImage} target="_blank" rel="noopener noreferrer" aria-label={`開啟圖片：${it.title}`}>
+                    <a href={it.coverImage} data-lightbox="records" data-caption={it.title} className="block cursor-zoom-in" aria-label={`放大檢視圖片：${it.title}`}>
                       <Cover src={it.coverImage} alt={it.title} seed={it.id} label={MILESTONE_KIND_LABEL[it.kind]} ratio="4 / 3" />
                     </a>
                   )}

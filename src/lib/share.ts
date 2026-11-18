@@ -87,3 +87,27 @@ export function buildShareText(a: ShareSource, baseUrl: string): string {
   };
   return custom.replace(/\{[^{}\n]{1,8}\}/g, (m) => (m in vars ? vars[m] : m));
 }
+
+/** 「近期活動整理」裡單一活動的段落（不含編號），給公告管理的「複製文案」使用 */
+export function buildDigestBlock(a: ShareSource, baseUrl: string): string {
+  const lines: string[] = [a.title.trim() || "未命名活動"];
+  const time = formatRange(a.startAt, a.endAt);
+  if (time) lines.push(`時間｜${time}`);
+  if (a.location?.trim()) lines.push(`地點｜${a.location.trim()}`);
+  const deadline = formatDateTime(a.registrationDeadline);
+  if (deadline) lines.push(`報名截止｜${deadline}`);
+  lines.push(`費用｜${formatFee(a.feeType, a.feeAmount, a.feeDescription)}`);
+  if (a.prize?.trim()) lines.push(`獎金｜${a.prize.trim()}`);
+  lines.push(`連結｜${shareUrl(baseUrl, a.slug)}`);
+  return lines.join("\n");
+}
+
+/** 把多則活動組成一篇「近期活動整理」：依活動開始時間排序，沒有日期的排最後 */
+export function buildDigest(items: { start: number | null; text: string }[], baseUrl: string): string {
+  const sorted = [...items].sort((x, y) => (x.start ?? Infinity) - (y.start ?? Infinity));
+  const body = sorted.map((it, i) => {
+    const [first, ...rest] = it.text.split("\n");
+    return [`${i + 1}. ${first}`, ...rest].join("\n");
+  });
+  return ["【近期活動整理】", "", body.join("\n\n"), "", `更多活動：${baseUrl.replace(/\/+$/, "")}/announcements`].join("\n");
+}

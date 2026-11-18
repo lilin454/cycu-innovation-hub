@@ -74,7 +74,11 @@ export function AnnouncementView({
       <div className="wrap grid grid-cols-[minmax(0,1fr)] gap-10 pt-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-14 lg:pt-12">
         {/* 主要內容 */}
         <div className="min-w-0">
-          {a.coverImage && <Cover src={a.coverImage} alt={`${a.title} 活動封面`} seed={a.slug} label={typeName} ratio="16 / 9" priority />}
+          {a.coverImage && (
+            <a href={a.coverImage} data-lightbox="announcement" data-caption="" aria-label="放大檢視活動封面" className="block cursor-zoom-in">
+              <Cover src={a.coverImage} alt={`${a.title} 活動封面`} seed={a.slug} label={typeName} ratio="16 / 9" priority />
+            </a>
+          )}
 
           {/* 手機版：活動資訊緊接在封面之後 */}
           <div className="mt-8 lg:hidden">
@@ -118,7 +122,7 @@ export function AnnouncementView({
               <ul className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3">
                 {a.images.map((img, i) => (
                   <li key={img.id} className={i === 0 && a.images.length % 2 === 1 ? "col-span-2 md:col-span-1" : ""}>
-                    <a href={img.url} target="_blank" rel="noopener noreferrer" aria-label={`開啟圖片：${img.alt || `活動圖片 ${i + 1}`}`}>
+                    <a href={img.url} data-lightbox="announcement" data-caption={img.alt || ""} className="block cursor-zoom-in" aria-label={`放大檢視：${img.alt || `活動圖片 ${i + 1}`}`}>
                       <Cover src={img.url} alt={img.alt || `活動圖片 ${i + 1}`} seed={img.id} label="圖片" ratio="4 / 3" />
                     </a>
                     {img.alt && <p className="mt-1 text-xs text-muted">{img.alt}</p>}
