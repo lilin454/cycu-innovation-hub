@@ -20,7 +20,11 @@ import { InstallButton } from "@/components/site/InstallButton";
 import type { Metadata } from "next";
 
 // 首頁的正式網址固定是 /，帶篩選參數的網址不會被 Google 當成重複頁面
-export const metadata: Metadata = { alternates: { canonical: "/" } };
+// 結尾要有斜線，和網站地圖與 Google 實際看到的首頁網址一致，避免被當成替代頁面
+export async function generateMetadata(): Promise<Metadata> {
+  const base = await getBaseUrl();
+  return { alternates: { canonical: `${base}/` } };
+}
 
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
