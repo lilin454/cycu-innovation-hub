@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { setShowInRecords } from "@/app/admin/actions";
+import { createMilestoneFromAnnouncement, setShowInRecords } from "@/app/admin/actions";
 import { formatDateTime } from "@/lib/format";
 import type { RecordCandidate } from "@/lib/milestones";
 import { toast } from "@/components/Toaster";
@@ -39,6 +39,27 @@ export function RecordPicker({ items }: { items: RecordCandidate[] }) {
     });
   };
 
+  /** 轉成可編輯的紀錄（或打開已轉過的紀錄）後，跳到上方的編輯表單 */
+  const edit = (it: RecordCandidate) => {
+    setBusyId(it.id);
+    start(async () => {
+      try {
+        const res = it.milestoneId ? { ok: true as const, id: it.milestoneId } : await createMilestoneFromAnnouncement(it.id);
+        if (!res.ok) {
+          toast(res.error, "error");
+          return;
+        }
+        if (!it.milestoneId) toast("已建立活動紀錄，可以開始編輯文字與照片");
+        router.push(`/admin/records?edit=${res.id}`);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } catch {
+        toast("網路連線錯誤，請稍後再試。", "error");
+      } finally {
+        setBusyId(null);
+      }
+    });
+  };
+
   const count = Object.values(checked).filter(Boolean).length;
   const shown = onlyChecked ? items.filter((i) => checked[i.id]) : items;
 
@@ -53,7 +74,8 @@ export function RecordPicker({ items }: { items: RecordCandidate[] }) {
         </label>
       </header>
       <p className="border-b border-line px-4 py-2 text-xs text-muted">
-        勾選後會以「活動成果・創創社」顯示在前台活動紀錄，內容使用公告的標題、日期、地點、摘要與封面。活動結束、下架或封存的公告都會列在這裡。
+        想寫活動成效、放現場照片：按「轉成可編輯紀錄」，會用公告的標題、日期、地點與封面建立一筆活動紀錄，之後文字與照片都能自由編輯（原公告不受影響）。
+        只勾選則直接沿用公告的標題、日期、地點、摘要與封面顯示。活動結束、下架或封存的公告都會列在這裡。
       </p>
       {shown.length === 0 ? (
         <p className="p-8 text-center text-sm text-muted">
@@ -63,14 +85,19 @@ export function RecordPicker({ items }: { items: RecordCandidate[] }) {
         <ul>
           {shown.map((it) => (
             <li key={it.id} className="border-b border-line last:border-b-0">
-              <label className="flex cursor-pointer items-start gap-3 px-4 py-3 hover:bg-sun-soft has-[:checked]:bg-sun-soft/60">
-                <input
-                  type="checkbox"
-                  className="mt-1 h-5 w-5 flex-none accent-[#0b2a4a]"
-                  checked={Boolean(checked[it.id])}
-                  disabled={busyId === it.id}
-                  onChange={(e) => toggle(it, e.target.checked)}
-                />
+              <div className="flex items-start gap-3 px-4 py-3 hover:bg-sun-soft">
+                {it.milestoneId ? (
+                  <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center border-2 border-ink bg-ink text-xs font-black text-paper" title="已建立可編輯的活動紀錄" aria-label="已建立可編輯的活動紀錄">✓</span>
+                ) : (
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-5 w-5 flex-none cursor-pointer accent-[#0b2a4a]"
+                    aria-label={`直接加入活動紀錄：${it.title}`}
+                    checked={Boolean(checked[it.id])}
+                    disabled={busyId === it.id}
+                    onChange={(e) => toggle(it, e.target.checked)}
+                  />
+                )}
                 <span className="min-w-0 flex-1">
                   <span className="block font-bold leading-snug">{it.title}</span>
                   <span className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted">
@@ -82,7 +109,10 @@ export function RecordPicker({ items }: { items: RecordCandidate[] }) {
                     </span>
                   </span>
                 </span>
-              </label>
+                <button type="button" className="btn btn-sm flex-none bg-white" disabled={busyId === it.id} onClick={() => edit(it)}>
+                  {it.milestoneId ? "編輯紀錄" : "轉成可編輯紀錄"}
+                </button>
+              </div>
             </li>
           ))}
         </ul>

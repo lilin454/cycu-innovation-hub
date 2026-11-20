@@ -119,6 +119,17 @@ export default async function RecordsPage({ searchParams }: Props) {
                         <Content text={it.content} />
                       </div>
                     )}
+                    {it.images && it.images.length > 0 && (
+                      <ul className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="活動照片">
+                        {it.images.map((u, i) => (
+                          <li key={u + i}>
+                            <a href={u} data-lightbox={`rec-${it.id}`} data-caption={`${it.title}（${i + 1}/${it.images!.length}）`} className="block cursor-zoom-in" aria-label={`放大檢視照片 ${i + 1}`}>
+                              <img src={u} alt={`${it.title} 照片 ${i + 1}`} loading="lazy" className="aspect-[4/3] w-full border-2 border-ink object-cover" />
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                     {it.fromAnnouncement?.slug && (
                       <p className="mt-3">
                         <Link href={`/a/${it.fromAnnouncement.slug}`} className="link-arrow text-sm">查看活動公告 <span aria-hidden>→</span></Link>

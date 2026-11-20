@@ -27,24 +27,28 @@ type Draft = {
   location: string;
   content: string;
   coverImage: string;
+  images: string[];
   linkUrl: string;
   published: boolean;
 };
 
 const empty = (): Draft => ({
   id: null, title: "", kind: "AWARD", subject: "CLUB", people: "", occurredOn: "", location: "",
-  content: "", coverImage: "", linkUrl: "", published: true,
+  content: "", coverImage: "", images: [], linkUrl: "", published: true,
 });
 
 const toDraft = (m: Milestone): Draft => ({
   id: m.id, title: m.title, kind: m.kind, subject: m.subject, people: m.people ?? "", occurredOn: m.occurredOn,
-  location: m.location ?? "", content: m.content, coverImage: m.coverImage ?? "", linkUrl: m.linkUrl ?? "",
+  location: m.location ?? "", content: m.content, coverImage: m.coverImage ?? "", images: m.images ?? [], linkUrl: m.linkUrl ?? "",
   published: m.status === "PUBLISHED",
 });
 
-export function MilestoneManager({ items, canDelete }: { items: Milestone[]; canDelete: boolean }) {
+export function MilestoneManager({ items, canDelete, editId }: { items: Milestone[]; canDelete: boolean; editId?: string }) {
   const router = useRouter();
-  const [draft, setDraft] = useState<Draft | null>(null);
+  const [draft, setDraft] = useState<Draft | null>(() => {
+    const m = editId ? items.find((i) => i.id === editId) : null;
+    return m ? toDraft(m) : null;
+  });
   const [toDelete, setToDelete] = useState<Milestone | null>(null);
   const [uploading, setUploading] = useState(false);
   const [pending, start] = useTransition();
@@ -80,6 +84,21 @@ export function MilestoneManager({ items, canDelete }: { items: Milestone[]; can
       const up = await uploadFile(file, "image");
       set("coverImage", up.url);
       toast("圖片已上傳");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "上傳失敗。", "error");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const onMore = async (files: FileList | null) => {
+    if (!files?.length) return;
+    setUploading(true);
+    try {
+      const urls: string[] = [];
+      for (const file of Array.from(files)) urls.push((await uploadFile(file, "image")).url);
+      setDraft((d) => (d ? { ...d, images: [...d.images, ...urls].slice(0, 12) } : d));
+      toast(`已上傳 ${urls.length} 張照片`);
     } catch (e) {
       toast(e instanceof Error ? e.message : "上傳失敗。", "error");
     } finally {
@@ -127,8 +146,8 @@ export function MilestoneManager({ items, canDelete }: { items: Milestone[]; can
               </label>
             </div>
             <label className="block">
-              <span className="field-label">說明（選填）</span>
-              <textarea className="input" rows={5} maxLength={5000} value={draft.content} onChange={(e) => set("content", e.target.value)} />
+              <span className="field-label">說明／活動成效（選填）</span>
+              <textarea className="input" rows={8} placeholder="例如：參加人數、現場回饋、活動亮點、學到的事…" maxLength={5000} value={draft.content} onChange={(e) => set("content", e.target.value)} />
               <span className="field-hint block">可用和公告內文相同的簡易標記：# 標題、- 清單、**粗體**，網址會自動變成連結。</span>
             </label>
             <label className="block">
@@ -145,6 +164,24 @@ export function MilestoneManager({ items, canDelete }: { items: Milestone[]; can
                 </label>
                 {draft.coverImage && <button type="button" className="btn btn-sm btn-danger" onClick={() => set("coverImage", "")}>移除</button>}
               </div>
+            </div>
+            <div>
+              <span className="field-label">更多活動照片（選填，最多 12 張）</span>
+              <div className="flex flex-wrap items-start gap-3">
+                {draft.images.map((u, i) => (
+                  <div key={u + i} className="relative">
+                    <img src={u} alt={`活動照片 ${i + 1}`} className="h-24 w-32 border-2 border-ink object-cover" />
+                    <button type="button" aria-label={`移除第 ${i + 1} 張照片`} className="absolute -right-2 -top-2 h-6 w-6 border-2 border-ink bg-danger text-sm font-black leading-none text-white" onClick={() => set("images", draft.images.filter((_, j) => j !== i))}>×</button>
+                  </div>
+                ))}
+                {draft.images.length < 12 && (
+                  <label className="btn btn-sm cursor-pointer bg-white">
+                    {uploading ? "上傳中…" : "＋ 上傳照片（可多選）"}
+                    <input type="file" accept={IMAGE_ACCEPT} multiple hidden disabled={uploading} onChange={(e) => { void onMore(e.target.files); e.target.value = ""; }} />
+                  </label>
+                )}
+              </div>
+              <span className="field-hint block">活動現場、成果照都可以放在這裡，前台會在說明下方以相簿顯示，點開可放大。</span>
             </div>
             <label className="flex cursor-pointer items-start gap-3 border-2 border-line bg-white p-3 has-[:checked]:border-ink has-[:checked]:bg-sun-soft">
               <input type="checkbox" className="mt-1 h-5 w-5 accent-[#0b2a4a]" checked={draft.published} onChange={(e) => set("published", e.target.checked)} />

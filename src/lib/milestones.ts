@@ -67,6 +67,7 @@ async function listRecordAnnouncements(f: MilestoneFilters, limit: number): Prom
   const rows = await all<RecordAnnouncementRow>(
     `SELECT ${RECORD_COLUMNS} FROM "Announcement"
      WHERE "showInRecords" = 1 AND "status" IN ('PUBLISHED', 'UNPUBLISHED', 'ARCHIVED')
+       AND NOT EXISTS (SELECT 1 FROM "Milestone" m WHERE m."announcementId" = "Announcement"."id")
      ORDER BY COALESCE("startAt", "publishedAt", "createdAt") DESC LIMIT ?`,
     limit,
   );
@@ -84,12 +85,16 @@ export type RecordCandidate = {
   location: string | null;
   showInRecords: number;
   autoUnpublishedAt: string | null;
+  /** 已轉成可編輯紀錄時，該紀錄的 id */
+  milestoneId: string | null;
 };
 
 export async function listRecordCandidates(): Promise<RecordCandidate[]> {
   const now = new Date();
   return all<RecordCandidate>(
-    `SELECT "id", "slug", "title", "status", "startAt", "endAt", "location", "showInRecords", "autoUnpublishedAt" FROM "Announcement"
+    `SELECT "id", "slug", "title", "status", "startAt", "endAt", "location", "showInRecords", "autoUnpublishedAt",
+            (SELECT m."id" FROM "Milestone" m WHERE m."announcementId" = "Announcement"."id") AS "milestoneId"
+     FROM "Announcement"
      WHERE "showInRecords" = 1
         OR "status" IN ('UNPUBLISHED', 'ARCHIVED')
         OR ("status" = 'PUBLISHED' AND (("endAt" IS NOT NULL AND "endAt" <= ?) OR ("endAt" IS NULL AND "startAt" IS NOT NULL AND "startAt" <= ?)))
@@ -100,25 +105,38 @@ export async function listRecordCandidates(): Promise<RecordCandidate[]> {
 }
 
 async function listOwnMilestones(f: MilestoneFilters, limit: number): Promise<Milestone[]> {
-  const where = [`"status" = 'PUBLISHED'`];
+  const where = [`m."status" = 'PUBLISHED'`];
   const params: (string | number)[] = [];
   if (f.kind) {
-    where.push(`"kind" = ?`);
+    where.push(`m."kind" = ?`);
     params.push(f.kind);
   }
   if (f.subject) {
-    where.push(`"subject" = ?`);
+    where.push(`m."subject" = ?`);
     params.push(f.subject);
   }
-  return all<Milestone>(
-    `SELECT * FROM "Milestone" WHERE ${where.join(" AND ")} ORDER BY "occurredOn" DESC, "createdAt" DESC LIMIT ?`,
+  const rows = await all<Milestone & { annSlug: string | null }>(
+    `SELECT m.*, (SELECT a."slug" FROM "Announcement" a WHERE a."id" = m."announcementId" AND a."status" = 'PUBLISHED') AS annSlug
+     FROM "Milestone" m WHERE ${where.join(" AND ")} ORDER BY m."occurredOn" DESC, m."createdAt" DESC LIMIT ?`,
     ...params,
     limit,
   );
+  const withImages = await attachImages(rows);
+  return withImages.map(({ annSlug, ...m }) => (m.announcementId ? { ...m, fromAnnouncement: { slug: annSlug } } : m));
+}
+
+/** 一次查出這些紀錄的其他照片 */
+async function attachImages<T extends Milestone>(rows: T[]): Promise<T[]> {
+  if (!rows.length) return rows;
+  const imgs = await all<{ milestoneId: string; url: string }>(
+    `SELECT "milestoneId", "url" FROM "MilestoneImage" WHERE "milestoneId" IN (${rows.map(() => "?").join(",")}) ORDER BY "sortOrder"`,
+    ...rows.map((r) => r.id),
+  );
+  return rows.map((r) => ({ ...r, images: imgs.filter((i) => i.milestoneId === r.id).map((i) => i.url) }));
 }
 
 export async function listAdminMilestones(): Promise<Milestone[]> {
-  return all<Milestone>(`SELECT * FROM "Milestone" ORDER BY "occurredOn" DESC, "createdAt" DESC LIMIT 500`);
+  return attachImages(await all<Milestone>(`SELECT * FROM "Milestone" ORDER BY "occurredOn" DESC, "createdAt" DESC LIMIT 500`));
 }
 
 export async function getMilestone(id: string): Promise<Milestone | null> {

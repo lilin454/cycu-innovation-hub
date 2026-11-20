@@ -23,6 +23,7 @@ const FILE_COLUMNS: [table: string, column: string][] = [
   ["AnnouncementImage", "url"],
   ["SiteSetting", "value"],
   ["Milestone", "coverImage"],
+  ["MilestoneImage", "url"],
   ["Officer", "photoUrl"],
   ["Organization", "logoUrl"],
 ];

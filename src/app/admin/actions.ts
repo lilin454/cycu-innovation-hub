@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { batch, first, newId, nowIso, run, stmt } from "@/lib/db";
+import { all, batch, first, newId, nowIso, run, stmt } from "@/lib/db";
 import { assertAdmin, hashPassword, login, logout, verifyPassword, type CurrentUser } from "@/lib/auth";
 import { getAnnouncementById, randomSlug } from "@/lib/announcements";
 import { SETTING_DEFAULTS, type SettingKey } from "@/lib/settings";
@@ -365,20 +365,29 @@ export async function saveMilestone(id: string | null, raw: unknown) {
   if (id) {
     const old = await first<{ coverImage: string | null }>(`SELECT "coverImage" FROM "Milestone" WHERE "id" = ?`, String(id));
     if (!old) return fail("找不到這筆紀錄，可能已被刪除。");
-    await run(
-      `UPDATE "Milestone" SET "title" = ?, "kind" = ?, "subject" = ?, "people" = ?, "occurredOn" = ?, "location" = ?, "content" = ?,
-         "coverImage" = ?, "linkUrl" = ?, "status" = ?, "updatedAt" = ? WHERE "id" = ?`,
-      d.title, d.kind, d.subject, nullable(d.people), d.occurredOn, nullable(d.location), d.content,
-      nullable(d.coverImage), nullable(d.linkUrl), status, now, String(id),
-    );
-    if (old.coverImage && old.coverImage !== d.coverImage) await cleanupFiles([old.coverImage]);
+    const oldImgs = (await all<{ url: string }>(`SELECT "url" FROM "MilestoneImage" WHERE "milestoneId" = ?`, String(id))).map((r) => r.url);
+    await batch([
+      stmt(
+        `UPDATE "Milestone" SET "title" = ?, "kind" = ?, "subject" = ?, "people" = ?, "occurredOn" = ?, "location" = ?, "content" = ?,
+           "coverImage" = ?, "linkUrl" = ?, "status" = ?, "updatedAt" = ? WHERE "id" = ?`,
+        d.title, d.kind, d.subject, nullable(d.people), d.occurredOn, nullable(d.location), d.content,
+        nullable(d.coverImage), nullable(d.linkUrl), status, now, String(id),
+      ),
+      stmt(`DELETE FROM "MilestoneImage" WHERE "milestoneId" = ?`, String(id)),
+      ...d.images.map((u, i) => stmt(`INSERT INTO "MilestoneImage" ("id", "milestoneId", "url", "sortOrder") VALUES (?, ?, ?, ?)`, newId(), String(id), u, i)),
+    ]);
+    await cleanupFiles([old.coverImage !== d.coverImage ? old.coverImage : null, ...oldImgs.filter((u) => !d.images.includes(u))]);
   } else {
-    await run(
-      `INSERT INTO "Milestone" ("id", "title", "kind", "subject", "people", "occurredOn", "location", "content", "coverImage", "linkUrl", "status", "createdAt", "updatedAt")
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      newId(), d.title, d.kind, d.subject, nullable(d.people), d.occurredOn, nullable(d.location), d.content,
-      nullable(d.coverImage), nullable(d.linkUrl), status, now, now,
-    );
+    const mid = newId();
+    await batch([
+      stmt(
+        `INSERT INTO "Milestone" ("id", "title", "kind", "subject", "people", "occurredOn", "location", "content", "coverImage", "linkUrl", "status", "createdAt", "updatedAt")
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        mid, d.title, d.kind, d.subject, nullable(d.people), d.occurredOn, nullable(d.location), d.content,
+        nullable(d.coverImage), nullable(d.linkUrl), status, now, now,
+      ),
+      ...d.images.map((u, i) => stmt(`INSERT INTO "MilestoneImage" ("id", "milestoneId", "url", "sortOrder") VALUES (?, ?, ?, ?)`, newId(), mid, u, i)),
+    ]);
   }
   refreshPublic();
   return { ok: true as const };
@@ -394,13 +403,40 @@ export async function setShowInRecords(id: string, show: boolean) {
   return { ok: true as const };
 }
 
+/** 把已結束（或已下架）的活動公告轉成一筆可以自由編輯的活動紀錄（文字、照片、成效說明）。公告本身不會被更動。 */
+export async function createMilestoneFromAnnouncement(announcementId: string) {
+  const { denied } = await guard();
+  if (denied) return denied;
+  const existing = await first<{ id: string }>(`SELECT "id" FROM "Milestone" WHERE "announcementId" = ?`, String(announcementId));
+  if (existing) return { ok: true as const, id: existing.id };
+  const a = await first<{
+    title: string; summary: string | null; location: string | null; coverImage: string | null;
+    startAt: string | null; publishedAt: string | null; createdAt: string;
+  }>(`SELECT "title", "summary", "location", "coverImage", "startAt", "publishedAt", "createdAt" FROM "Announcement" WHERE "id" = ?`, String(announcementId));
+  if (!a) return fail("找不到這則公告。");
+  const when = new Date(new Date(a.startAt ?? a.publishedAt ?? a.createdAt).getTime() + 8 * 3600_000).toISOString().slice(0, 10);
+  const id = newId();
+  const now = nowIso();
+  await batch([
+    stmt(
+      `INSERT INTO "Milestone" ("id", "title", "kind", "subject", "people", "occurredOn", "location", "content", "coverImage", "linkUrl", "status", "announcementId", "createdAt", "updatedAt")
+       VALUES (?, ?, 'EVENT', 'CLUB', NULL, ?, ?, ?, ?, NULL, 'PUBLISHED', ?, ?, ?)`,
+      id, a.title, when, a.location, a.summary ?? "", a.coverImage, String(announcementId), now, now,
+    ),
+    stmt(`UPDATE "Announcement" SET "showInRecords" = 0 WHERE "id" = ?`, String(announcementId)),
+  ]);
+  refreshPublic();
+  return { ok: true as const, id };
+}
+
 export async function deleteMilestone(id: string) {
   const { denied } = await guard(true);
   if (denied) return denied;
   const old = await first<{ coverImage: string | null }>(`SELECT "coverImage" FROM "Milestone" WHERE "id" = ?`, String(id));
   if (!old) return fail("找不到這筆紀錄，可能已被刪除。");
+  const imgs = (await all<{ url: string }>(`SELECT "url" FROM "MilestoneImage" WHERE "milestoneId" = ?`, String(id))).map((r) => r.url);
   await run(`DELETE FROM "Milestone" WHERE "id" = ?`, String(id));
-  await cleanupFiles([old.coverImage]);
+  await cleanupFiles([old.coverImage, ...imgs]);
   refreshPublic();
   return { ok: true as const };
 }

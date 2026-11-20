@@ -171,6 +171,7 @@ export const milestoneSchema = z.object({
   location: text(200),
   content: z.string().max(5000, "說明過長（上限 5000 字）"),
   coverImage: z.union([fileUrl, z.literal("")]),
+  images: z.array(fileUrl).max(12, "其他照片最多 12 張").default([]),
   linkUrl: optionalUrl,
   published: z.boolean(),
 });

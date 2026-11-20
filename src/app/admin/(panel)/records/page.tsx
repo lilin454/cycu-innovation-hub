@@ -6,8 +6,9 @@ import { RecordPicker } from "@/components/admin/RecordPicker";
 
 export const metadata: Metadata = { title: "活動紀錄" };
 
-export default async function AdminRecordsPage() {
+export default async function AdminRecordsPage({ searchParams }: { searchParams: Promise<{ edit?: string }> }) {
   const user = await requireAdmin();
+  const { edit } = await searchParams;
   const [items, candidates] = await Promise.all([listAdminMilestones(), listRecordCandidates()]);
   return (
     <div className="mx-auto max-w-4xl">
@@ -17,8 +18,12 @@ export default async function AdminRecordsPage() {
         記錄創創社、幹部與社員的獲獎、參訪交流與活動成果。公開的紀錄會依年份顯示在前台的「活動紀錄」頁面。
         社團自己辦過的活動，直接在下方勾選就能加入；獲獎、參訪等其他紀錄可以另外新增。
       </p>
+      {edit ? (
+        <MilestoneManager key={edit} items={items} canDelete={user.role === "OWNER"} editId={edit} />
+      ) : (
+        <MilestoneManager items={items} canDelete={user.role === "OWNER"} />
+      )}
       <RecordPicker items={candidates} />
-      <MilestoneManager items={items} canDelete={user.role === "OWNER"} />
     </div>
   );
 }
