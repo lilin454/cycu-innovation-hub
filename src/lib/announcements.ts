@@ -24,6 +24,11 @@ export const PAGE_SIZE = 8;
  * 2. 前台與後台每次讀取公告之前（保證訪客看到的一定是最新狀態）
  */
 /** 發布到期的排程公告，並自動下架已結束的公告（Cron 之外，前台讀取時也會順便執行，讓狀態即時） */
+/**
+ * 發布到期的排程公告、下架已結束的公告。
+ * 前台頁面不再呼叫它（每次瀏覽都寫資料庫太耗費 D1 額度），改由 Worker 的 Cron 每 5 分鐘執行（custom-worker.ts）；
+ * 只有後台列表與總覽在開啟時順便執行，讓管理員看到最新狀態。
+ */
 export async function publishDue(): Promise<number> {
   const [pub, unpub] = lifecycleStatements(new Date());
   const a = await run(pub.sql, ...pub.params);
@@ -133,7 +138,6 @@ function addCategoryFilter(w: Where, kind: "SOURCE" | "EVENT_TYPE", slugs: strin
 }
 
 export async function listPublic(f: PublicFilters, pageSize = PAGE_SIZE) {
-  await publishDue();
   const w: Where = { sql: [`a."status" = 'PUBLISHED'`], params: [] };
   if (f.q) addSearch(w, f.q);
   // 不同分類之間為「且」，同一分類內多選為「或」
@@ -229,7 +233,6 @@ export async function getPublicStats() {
 
 export async function getPublicBySlug(slug: string): Promise<AnnouncementDetail | null> {
   if (!/^[a-z0-9-]{1,60}$/.test(slug)) return null;
-  await publishDue();
   const row = await first<AnnouncementRow>(`SELECT * FROM "Announcement" WHERE "slug" = ? AND "status" = 'PUBLISHED'`, slug);
   return row ? toDetail(mapAnnouncement(row)) : null;
 }
@@ -254,7 +257,6 @@ export async function getRelated(a: AnnouncementDetail, take = 3): Promise<Annou
 
 /** 行事曆：取得某個月份（台灣時間）內有舉辦的已發布活動，含跨月的活動 */
 export async function getCalendarMonth(year: number, month: number): Promise<Announcement[]> {
-  await publishDue();
   // 台灣時間當月 1 日 00:00 = UTC 前一天 16:00
   const start = new Date(Date.UTC(year, month - 1, 1) - 8 * 3600_000).toISOString();
   const end = new Date(Date.UTC(year, month, 1) - 8 * 3600_000).toISOString();
